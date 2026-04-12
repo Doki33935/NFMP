@@ -5,41 +5,49 @@ from PySide6.QtCore import Qt
 
 
 class LoginWindow(QWidget):
-    def __init__(self, api):
+    def __init__(self, api, app):
         super().__init__()
 
         self.api = api
+        self.app = app
 
-        self.setWindowTitle("NFMP - Система учета пожаров")
         self.setMinimumSize(400, 500)
 
+        self.init_ui()
+
+    # 🎨 UI
+    def init_ui(self):
         layout = QVBoxLayout()
 
         # 🔥 Заголовок
         title = QLabel("🔥 Система учета\nландшафтных пожаров")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("""
-            font-size: 22px;
+            font-size: 24px;
             font-weight: bold;
-            color: white;
+            color: #ff3b30;
         """)
 
-        # Логин
+        # 👤 Логин
         self.username = QLineEdit()
         self.username.setPlaceholderText("Логин")
 
-        # Пароль
+        # 🔒 Пароль
         self.password = QLineEdit()
         self.password.setPlaceholderText("Пароль")
         self.password.setEchoMode(QLineEdit.Password)
 
-        # Кнопка
+        # ▶ Кнопка
         login_btn = QPushButton("Начать работу")
         login_btn.clicked.connect(self.handle_login)
 
-        # Ошибка
+        # ❌ Ошибка
         self.error = QLabel("")
         self.error.setStyleSheet("color: red;")
+        self.error.setAlignment(Qt.AlignCenter)
+
+        # 🔥 UX — Enter для входа
+        self.password.returnPressed.connect(self.handle_login)
 
         layout.addStretch()
         layout.addWidget(title)
@@ -52,37 +60,21 @@ class LoginWindow(QWidget):
 
         self.setLayout(layout)
 
-        # 🎨 стиль
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1e1e1e;
-            }
-            QLineEdit {
-                padding: 10px;
-                border-radius: 8px;
-                background-color: #2b2b2b;
-                color: white;
-            }
-            QPushButton {
-                padding: 12px;
-                border-radius: 10px;
-                background-color: #ff3b30;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #ff5c50;
-            }
-        """)
-
+    # 🔐 Логика входа
     def handle_login(self):
-        username = self.username.text()
-        password = self.password.text()
+        username = self.username.text().strip()
+        password = self.password.text().strip()
+
+        if not username or not password:
+            self.error.setText("Введите логин и пароль")
+            return
 
         try:
-            self.api.login(username, password)
-            self.error.setText("Успешный вход 🚀")
+            user = self.api.login(username, password)
 
-            # 👉 дальше откроем главное меню
+            # 👉 переход через stack
+            self.app.go_to_main(user)
+
         except Exception as e:
-            self.error.setText("Ошибка входа")
+            print(e)
+            self.error.setText("Неверный логин или пароль")
