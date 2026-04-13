@@ -39,20 +39,21 @@ class MainMenu(QWidget):
     def setup_buttons(self):
         role = self.user["role"]
 
+        # 👤 Диспетчер
         if role == "dispatcher":
             self.add_button("➕ Заполнить КУЛП", self.open_create_fire)
-            self.add_button("📄 Мои КУЛП", self.open_my_fires)
 
+        # 🔍 Инспектор
         elif role == "inspector":
-            self.add_button("🔍 Проверка КУЛП", self.open_review)
-            self.add_button("📄 Все КУЛП", self.open_all_fires)
+            self.add_button("📄 Список КУЛП", self.open_fire_list)
 
+        # 🛠 Админ
         elif role == "admin":
-            self.add_button("🔍 Проверка КУЛП", self.open_review)
-            self.add_button("✏ Редактировать КУЛП", self.open_edit)
+            self.add_button("📄 Все КУЛП", self.open_fire_list)
             self.add_button("👥 Управление пользователями", self.open_users)
             self.add_button("📊 Мониторинг", self.open_monitoring)
 
+        # 📊 Руководитель
         elif role == "chief":
             self.add_button("📊 Мониторинг", self.open_monitoring)
 
@@ -79,9 +80,6 @@ class MainMenu(QWidget):
         self.app.go_to_fire_create(self.user)
         print("Создание КУЛП")
 
-    def open_my_fires(self):
-        print("Мои КУЛП")
-
     def open_review(self):
         print("Проверка КУЛП")
 
@@ -93,3 +91,9 @@ class MainMenu(QWidget):
 
     def open_monitoring(self):
         print("Мониторинг")
+
+    def open_fire_list(self):
+        self.app.go_to_fire_list(self.user)
+    
+    def open_fire(self, fire_id):
+        self.app.go_to_fire_edit(self.user, fire_id)

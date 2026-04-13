@@ -1,42 +1,38 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from db.base import Base
+
 
 class Fire(Base):
     __tablename__ = "fires"
 
     id = Column(Integer, primary_key=True)
 
-    fire_date = Column(DateTime)
-    report_time = Column(DateTime)
-    liquidation_datetime = Column(DateTime)
-
-    address = Column(String)
-    address_comment = Column(String)
-
-    municipality_id = Column(Integer, ForeignKey("municipalities.id"))
-    settlement_id = Column(Integer, ForeignKey("settlements.id"))
-
-    latitude = Column(Float)
-    longitude = Column(Float)
-
-    land_type_id = Column(Integer, ForeignKey("land_types.id"))
+    # 🔥 основные
+    date = Column(String)
+    time_msg = Column(String)
     fire_type = Column(String)
-
-    forestry_id = Column(Integer, ForeignKey("forestries.id"), nullable=True)
-
-    is_right_of_way = Column(Boolean)
-    right_of_way_type_id = Column(Integer, ForeignKey("right_of_way_types.id"), nullable=True)
-    owner = Column(String, nullable=True)
-
-    source = Column(String)
+    land_type = Column(String)
     area = Column(Float)
 
-    dispatcher_name = Column(String)
-    external_card_id = Column(String)
-    investigator_name = Column(String)
+    # 📍 локация
+    address = Column(String)
+    comment = Column(String)
+    municipality = Column(String)
+    settlement = Column(String)
 
-    description = Column(String)
+    # 🧑‍🚒 контекст
+    forestry = Column(String)
+    right_of_way = Column(String)
+    owner = Column(String)
+    source = Column(String)
+    extra = Column(String)
 
-    status = Column(String, default="draft")
+    # 👤 пользователи
+    dispatcher_id = Column(Integer, ForeignKey("users.id"))
+    inspector_id = Column(Integer, nullable=True)
 
-    locked_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    dispatcher_fio = Column(String)
+    inspector_fio = Column(String)
+
+    # 📊 статус
+    status = Column(String, default="OPEN")

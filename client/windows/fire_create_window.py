@@ -35,9 +35,6 @@ class FireCreateWindow(QWidget):
         # 🧑‍🚒 БЛОК 3 — Контекст
         self.tabs.addTab(self.tab_context(), "🧑‍🚒 Контекст")
 
-        # ⚙ БЛОК 4 — Система
-        self.tabs.addTab(self.tab_system(), "⚙ Система")
-
         save_btn = QPushButton("💾 Сохранить КУЛП")
         save_btn.clicked.connect(self.save)
 
@@ -115,47 +112,23 @@ class FireCreateWindow(QWidget):
         w.setLayout(f)
         return w
 
-    # ⚙ БЛОК 4 — Система
-    def tab_system(self):
-        w = QWidget()
-        f = QFormLayout()
-
-        self.fio_dispatcher = QLabel(self.user["full_name"])
-        self.fio_inspector = QLabel("—")
-
-        self.status = QLabel("DRAFT")
-        self.service_time = QLabel("auto")
-
-        f.addRow("Диспетчер", self.fio_dispatcher)
-        f.addRow("Инспектор", self.fio_inspector)
-        f.addRow("Статус", self.status)
-        f.addRow("Обслуживание", self.service_time)
-
-        w.setLayout(f)
-        return w
-
     # 💾 SAVE
     def save(self):
         data = {
-            "date": self.date.date().toString(),
-            "time_msg": self.time_msg.time().toString(),
-            "land_type": self.land_type.currentText(),
-            "fire_type": self.fire_type.currentText(),
-            "area": self.area.text(),
-
             "address": self.address.text(),
-            "comment": self.comment.text(),
-            "mo": self.mo.currentText(),
-            "selsovet": self.selsovet.currentText(),
-
-            "forestry": self.forestry.currentText(),
-            "right_of_way": self.right_of_way.currentText(),
-            "owner": self.owner.text(),
+            "area": self.area.text(),
             "source": self.source.text(),
-            "extra": self.extra.text(),
-
-            "dispatcher_fio": self.user["full_name"],
         }
 
-        self.api.create_fire(data)
+        # диспетчер создаёт
+        if self.user["role"] == "dispatcher":
+            self.api.create_fire(data)
+
+        # инспектор редактирует
+        elif self.user["role"] == "inspector":
+            self.api.update_fire(self.fire_id, {
+                **data,
+                "inspector_fio": self.user["full_name"]
+            })
+
         print("КУЛП сохранён")
