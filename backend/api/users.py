@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+from schemas.user import UserCreate
 from db.session import SessionLocal
 from models.user import User
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(tags=["users"])
 
 
 def get_db():
@@ -15,31 +15,28 @@ def get_db():
         db.close()
 
 
-@router.post("/")
+@router.post("/users")
 def create_user(
-    username: str,
-    password: str,
-    role: str,
-    full_name: str,
+    user: UserCreate,
     db: Session = Depends(get_db)
 ):
-    existing = db.query(User).filter(User.username == username).first()
+    existing = db.query(User).filter(User.username == user.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    user = User(
-        username=username,
-        password_hash=password,
-        role=role,
-        full_name=full_name
+    user_obj = User(
+        username=user.username,
+        password_hash=user.password,
+        role=user.role,
+        full_name=user.full_name
     )
 
-    db.add(user)
+    db.add(user_obj)
     db.commit()
-    db.refresh(user)
+    db.refresh(user_obj)
 
     return {
-        "id": user.id,
-        "username": user.username,
-        "role": user.role
+        "id": user_obj.id,
+        "username": user_obj.username,
+        "role": user_obj.role
     }

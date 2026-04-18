@@ -1,38 +1,74 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
+from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String
+from sqlalchemy.orm import relationship
 from db.base import Base
 
 
 class Fire(Base):
     __tablename__ = "fires"
 
-    id = Column(Integer, primary_key=True)
+    # =========================
+    # 🔥 PRIMARY
+    # =========================
+    id = Column(Integer, primary_key=True, index=True)
 
-    # 🔥 основные
-    date = Column(String)
-    time_msg = Column(String)
-    fire_type = Column(String)
-    land_type = Column(String)
-    area = Column(Float)
+    # =========================
+    # 🔥 EVENT
+    # =========================
+    fire_date = Column(DateTime, nullable=False)
+    time_msg = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=True)
 
-    # 📍 локация
-    address = Column(String)
-    comment = Column(String)
-    municipality = Column(String)
-    settlement = Column(String)
+    is_forest = Column(Boolean, nullable=False)
 
-    # 🧑‍🚒 контекст
-    forestry = Column(String)
-    right_of_way = Column(String)
-    owner = Column(String)
-    source = Column(String)
-    extra = Column(String)
+    land_type_id = Column(Integer, ForeignKey("land_types.id"), nullable=False, index=True)
 
-    # 👤 пользователи
-    dispatcher_id = Column(Integer, ForeignKey("users.id"))
-    inspector_id = Column(Integer, nullable=True)
+    area = Column(Float, nullable=True)
 
-    dispatcher_fio = Column(String)
-    inspector_fio = Column(String)
+    # =========================
+    # 📍 LOCATION
+    # =========================
+    address = Column(String, nullable=False)
+    address_comment = Column(String, nullable=True)
 
-    # 📊 статус
-    status = Column(String, default="OPEN")
+    municipality_id = Column(Integer, ForeignKey("municipalities.id"), nullable=False, index=True)
+    selsovet_id = Column(Integer, ForeignKey("selsovets.id"), nullable=True, index=True)
+
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+
+    # =========================
+    # 🧭 CONTEXT
+    # =========================
+    forestry_id = Column(Integer, ForeignKey("forestries.id"), nullable=True, index=True)
+    reason_id = Column(Integer, ForeignKey("reasons.id"), nullable=True, index=True)
+    right_of_way = Column(Boolean, nullable=True)
+    right_of_way_type = Column(String, nullable=True)
+    owner = Column(String, nullable=True)
+
+    source = Column(String, nullable=True)
+    extra = Column(String, nullable=True)
+
+    # =========================
+    # 👤 USERS
+    # =========================
+    dispatcher_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    inspector_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
+    # =========================
+    # 📄 EXTERNAL
+    # =========================
+    external_card_number = Column(String, nullable=True)
+
+    # =========================
+    # 📊 STATUS
+    # =========================
+    status = Column(String, default="OPEN", nullable=False)
+
+    # =========================
+    # 🔗 RELATIONS (ТОЛЬКО FK-объекты)
+    # =========================
+    municipality = relationship("Municipality")
+    selsovet = relationship("Selsovet")
+    land_type = relationship("LandType")
+    forestry = relationship("Forestry")
+    reason = relationship("Reason")

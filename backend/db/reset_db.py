@@ -1,6 +1,6 @@
 from sqlalchemy import text
 from db.session import engine
-from db.init_db import init_db, seed_admin
+from db.init_db import init_db, seed_admin, seed_forestry, seed_land_types, seed_municipalities,seed_selsovets,seed_fire_participants,seed_tech_types, seed_reasons
 
 
 def reset_database():
@@ -13,3 +13,10 @@ def reset_database():
     # пересоздаем таблицы
     init_db()
     seed_admin()
+    seed_forestry()
+    seed_land_types()
+    seed_municipalities()
+    seed_selsovets()
+    seed_tech_types()
+    seed_fire_participants()
+    seed_reasons()
