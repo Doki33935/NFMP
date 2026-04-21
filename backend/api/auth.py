@@ -23,8 +23,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # пока без хешей (dev режим)
-    if user.password_hash != data.password:
+    if user.password != data.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return LoginResponse(

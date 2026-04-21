@@ -1,25 +1,26 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel
 from PySide6.QtCore import Qt
 
+from services.role_service import RoleService
+
 
 class MainMenu(QWidget):
-    def __init__(self, user, api, app):
+    def __init__(self, user, app):
         super().__init__()
 
         self.user = user
-        self.api = api
         self.app = app
 
         self.layout = QVBoxLayout()
-        self.init_ui()
         self.setLayout(self.layout)
 
-    # 🎨 UI
+        self.init_ui()
+
     def init_ui(self):
-        role_name = self.get_role_name(self.user["role"])
+        role_name = RoleService.get_role_name(self.user.role)
 
         title = QLabel(
-            f"🔥 Добро пожаловать\n\n{role_name}\n{self.user['full_name']}"
+            f"🔥 Добро пожаловать\n\n{role_name}\n{self.user.full_name}"
         )
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("""
@@ -35,65 +36,35 @@ class MainMenu(QWidget):
 
         self.layout.addStretch()
 
-    # 🎯 Кнопки
     def setup_buttons(self):
-        role = self.user["role"]
+        actions = RoleService.get_actions(self.user.role)
 
-        # 👤 Диспетчер
-        if role == "dispatcher":
-            self.add_button("➕ Заполнить КУЛП", self.open_create_fire)
+        for action in actions:
+            self.add_action_button(action)
 
-        # 🔍 Инспектор
-        elif role == "inspector":
-            self.add_button("📄 Список КУЛП", self.open_fire_list)
+    def add_action_button(self, action):
+        mapping = {
+            "create_fire": ("➕ Заполнить КУЛП", self.open_create_fire),
+            "fire_list": ("📄 Список КУЛП", self.open_fire_list),
+            "users": ("👥 Управление пользователями", self.open_users),
+            "monitoring": ("📊 Мониторинг", self.open_monitoring),
+        }
 
-        # 🛠 Админ
-        elif role == "admin":
-            self.add_button("📄 Все КУЛП", self.open_fire_list)
-            self.add_button("👥 Управление пользователями", self.open_users)
-            self.add_button("📊 Мониторинг", self.open_monitoring)
+        text, handler = mapping[action]
 
-        # 📊 Руководитель
-        elif role == "chief":
-            self.add_button("📊 Мониторинг", self.open_monitoring)
-
-    # 🧩 Кнопка
-    def add_button(self, text, handler):
         btn = QPushButton(text)
         btn.clicked.connect(handler)
+
         self.layout.addWidget(btn)
 
-    def get_role_name(self, role):
-        roles = {
-            "dispatcher": "Исполнитель-1 (Диспетчер)",
-            "inspector": "Исполнитель-2 (Инспектор)",
-            "admin": "Администратор",
-            "chief": "Руководитель"
-        }
-        return roles.get(role, role)
-
-    # 📂 Действия
     def open_users(self):
         self.app.go_to_users()
 
     def open_create_fire(self):
-        self.app.go_to_fire_create(self.user)
-        print("Создание КУЛП")
-
-    def open_review(self):
-        print("Проверка КУЛП")
-
-    def open_all_fires(self):
-        print("Все КУЛП")
-
-    def open_edit(self):
-        print("Редактирование")
+        self.app.go_to_fire_create()
 
     def open_monitoring(self):
         print("Мониторинг")
 
     def open_fire_list(self):
-        self.app.go_to_fire_list(self.user)
-    
-    def open_fire(self, fire_id):
-        self.app.go_to_fire_edit(self.user, fire_id)
+        self.app.go_to_fire_list()

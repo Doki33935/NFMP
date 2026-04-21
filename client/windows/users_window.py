@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QComboBox
+    QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QComboBox, QMessageBox
 )
 
 
@@ -64,7 +64,22 @@ class UsersWindow(QWidget):
                 self.full_name.text(),
                 self.role.currentText()
             )
-            self.result.setText("✅ Пользователь создан")
+
+            # ✅ popup успеха
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Успех")
+            msg.setText("Пользователь успешно создан")
+            msg.setIcon(QMessageBox.Information)
+            msg.exec()
+
+            # 👉 возврат в главное меню
+            self.app.go_to_main(self.app.user)
+
         except Exception as e:
             print(e)
-            self.result.setText("❌ Ошибка")
+
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Ошибка")
+            msg.setText("Не удалось создать пользователя")
+            msg.setIcon(QMessageBox.Critical)
+            msg.exec()

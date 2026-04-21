@@ -26,7 +26,7 @@ def create_user(
 
     user_obj = User(
         username=user.username,
-        password_hash=user.password,
+        password=user.password,
         role=user.role,
         full_name=user.full_name
     )

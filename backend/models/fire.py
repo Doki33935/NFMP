@@ -72,3 +72,8 @@ class Fire(Base):
     land_type = relationship("LandType")
     forestry = relationship("Forestry")
     reason = relationship("Reason")
+    participant_events = relationship(
+        "FireParticipantEvent",
+        backref="fire",
+        cascade="all, delete-orphan"
+    )

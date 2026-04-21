@@ -1,29 +1,30 @@
 import requests
-
+from models.login import LoginRequestDTO, LoginResponseDTO
+from models.fire_create import FireCreateDTO
+from models.fire_response import FireResponseDTO
+from models.fire_update import FireUpdateDTO 
 
 class ApiClient:
     def __init__(self):
         self.base_url = "http://localhost:8000"
-        self.token = None
 
     # =========================
     # AUTH
     # =========================
-    def login(self, username, password):
+    def login(self, username, password) -> LoginResponseDTO:
+        dto = LoginRequestDTO(username, password)
         response = requests.post(
             f"{self.base_url}/login",
-            json={
-                "username": username,
-                "password": password
-            }
+            json=dto.to_dict()
         )
 
         if response.status_code != 200:
             raise Exception(response.text)
 
         data = response.json()
-        self.token = data.get("access_token")
-        return data
+
+        return LoginResponseDTO.from_dict(data)
+    
 
     # =========================
     # USERS (admin only)
@@ -48,18 +49,18 @@ class ApiClient:
     # FIRES
     # =========================
 
-    def create_fire(self, data):
+    def create_fire(self, fire: dict):
         response = requests.post(
             f"{self.base_url}/fires/",
-            json=data
+            json=fire
         )
 
         if response.status_code != 200:
             raise Exception(response.text)
 
-        return response.json()
+        return FireResponseDTO.from_dict(response.json())
 
-    def get_fires(self, status=None):
+    def get_fires(self, status=None) -> list[FireResponseDTO]:
         params = {}
 
         if status:
@@ -73,23 +74,26 @@ class ApiClient:
         if response.status_code != 200:
             raise Exception(response.text)
 
-        return response.json()
+        return [
+            FireResponseDTO.from_dict(f)
+            for f in response.json()
+        ]
 
-    def get_fire(self, fire_id):
+    def get_fire(self, fire_id: int) -> FireResponseDTO:
         response = requests.get(f"{self.base_url}/fires/{fire_id}")
 
         if response.status_code != 200:
             raise Exception(response.text)
 
-        return response.json()
+        return FireResponseDTO.from_dict(response.json())
 
     # =========================
     # INSPECTOR UPDATE
     # =========================
-    def update_fire(self, fire_id, data):
+    def update_fire(self, fire_id: int, data: FireUpdateDTO):
         response = requests.put(
             f"{self.base_url}/fires/{fire_id}",
-            json=data
+            json=data.to_dict()
         )
 
         if response.status_code != 200:
@@ -103,6 +107,20 @@ class ApiClient:
     def close_fire(self, fire_id):
         response = requests.post(
             f"{self.base_url}/fires/{fire_id}/close"
+        )
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return response.json()
+    
+
+    # =========================
+    # REFERENCES
+    # =========================
+    def get_references(self, ref_type):
+        response = requests.get(
+            f"{self.base_url}/references/{ref_type}"
         )
 
         if response.status_code != 200:

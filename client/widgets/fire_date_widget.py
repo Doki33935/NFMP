@@ -1,104 +1,69 @@
-from PySide6.QtWidgets import QDateEdit, QCalendarWidget
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel
 from PySide6.QtCore import QDate
-from PySide6.QtGui import QColor, QTextCharFormat
 
 
-class FireDateWidget(QDateEdit):
+class FireDateWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        # 📅 базовые настройки
-        self.setCalendarPopup(True)
-        self.setDate(QDate.currentDate())
-        self.setDisplayFormat("dd.MM.yyyy")
-        self.setMaximumDate(QDate.currentDate())
+        self.current_date = QDate.currentDate()
 
-        # 📅 календарь (ВАЖНО: parent = self)
-        self.calendar = QCalendarWidget(self)
-        self.calendar.setGridVisible(True)
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
 
-        # ❌ убираем номера недель
-        self.calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        # ←
+        self.btn_prev = QPushButton("◀")
+        self.btn_prev.clicked.connect(self.prev_day)
 
-        self.setCalendarWidget(self.calendar)
+        # дата
+        self.label = QLabel()
+        self.label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.label.setMinimumWidth(150)
 
-        # 🎨 стиль календаря
-        self.calendar.setStyleSheet("""
-            QCalendarWidget {
-                background-color: #1e1e1e;
-                color: white;
-            }
+        # →
+        self.btn_next = QPushButton("▶")
+        self.btn_next.clicked.connect(self.next_day)
 
-            QCalendarWidget QToolButton {
-                background-color: #2b2b2b;
-                color: white;
-                border-radius: 6px;
-                padding: 5px;
-            }
+        self.layout.addWidget(self.btn_prev)
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.btn_next)
 
-            QCalendarWidget QToolButton:hover {
-                background-color: #ff3b30;
-            }
+        self.update_label()
+        self.update_limits()
 
-            QCalendarWidget QAbstractItemView {
-                selection-background-color: #ff3b30;
-                selection-color: white;
-                background-color: #1e1e1e;
-                gridline-color: #333;
-            }
+    # =========================
+    # ЛОГИКА
+    # =========================
+    def prev_day(self):
+        self.current_date = self.current_date.addDays(-1)
+        self.update_label()
+        self.update_limits()
 
-            QCalendarWidget QHeaderView::section {
-                background-color: #2b2b2b;
-                color: white;
-                padding: 4px;
-                border: none;
-            }
-        """)
+    def next_day(self):
+        today = QDate.currentDate()
 
-        # 🎨 стиль input (ВАЖНО: убрали arrow hack)
-        self.setStyleSheet("""
-            QDateEdit {
-                padding: 10px;
-                border-radius: 8px;
-                background-color: #2b2b2b;
-                color: white;
-                border: 1px solid #3a3a3a;
-            }
+        # ❌ запрещаем будущее
+        if self.current_date >= today:
+            return
 
-            QDateEdit:hover {
-                border: 1px solid #ff3b30;
-            }
+        self.current_date = self.current_date.addDays(1)
+        self.update_label()
+        self.update_limits()
 
-            QDateEdit::drop-down {
-                width: 28px;
-                border-left: 1px solid #3a3a3a;
-                background: #2b2b2b;
-            }
+    # =========================
+    # UI
+    # =========================
+    def update_label(self):
+        self.label.setText(self.current_date.toString("dd.MM.yyyy"))
 
-            QDateEdit::down-arrow {
-                image: none;
-            }
-        """)
+    def update_limits(self):
+        today = QDate.currentDate()
 
-        # 🔥 стабильная подсветка (ТОЛЬКО текущий месяц)
-        self.calendar.currentPageChanged.connect(self._highlight_weekends)
-        self._highlight_weekends()
+        # кнопка вперёд блокируется на "сегодня"
+        self.btn_next.setEnabled(self.current_date < today)
 
-    # 🔥 стабильная логика выходных (без перебора 2 лет!)
-    def _highlight_weekends(self):
-        fmt = QTextCharFormat()
-        fmt.setForeground(QColor("#ff5c5c"))
-
-        year = self.calendar.yearShown()
-        month = self.calendar.monthShown()
-
-        first = QDate(year, month, 1)
-
-        for i in range(42):  # максимум клеток календаря
-            d = first.addDays(i)
-
-            if d.month() != month:
-                continue
-
-            if d.dayOfWeek() in (6, 7):
-                self.calendar.setDateTextFormat(d, fmt)
+    # =========================
+    # API
+    # =========================
+    def value(self):
+        return self.current_date.toPython()

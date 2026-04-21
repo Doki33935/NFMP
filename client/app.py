@@ -7,11 +7,13 @@ from windows.users_window import UsersWindow
 from windows.fire_list_window import FireListWindow
 from windows.fire_edit_window import FireEditWindow
 
+
 class App(QWidget):
     def __init__(self, api):
         super().__init__()
 
         self.api = api
+        self.user = None
 
         self.stack = QStackedWidget()
 
@@ -19,54 +21,68 @@ class App(QWidget):
         layout.addWidget(self.stack)
         self.setLayout(layout)
 
-        # кеш экранов (lazy cache)
         self.screens = {}
 
         self.go_to_login()
 
-    def show_screen(self, name, builder):
+    # =========================
+    # NAVIGATION
+    # =========================
+
+    def go_to_login(self):
+        self._show("login", lambda: LoginWindow(self.api, self))
+
+    def go_to_main(self, user):
+        self.user = user
+        self._reset_screens(except_keys={"login"})
+
+        self._show("main", lambda: MainMenu(user, self))
+
+    def go_to_users(self):
+        self._show("users", lambda: UsersWindow(self.api, self))
+
+    def go_to_fire_create(self):
+        self._show(
+            "fire_create",
+            lambda: FireCreateWindow(self.api, self, self.user)
+        )
+
+    def go_to_fire_list(self):
+        self._show(
+            "fire_list",
+            lambda: FireListWindow(self.api, self, self.user)
+        )
+
+    def go_to_fire_edit(self, fire_id):
+        key = f"fire_edit_{fire_id}"
+
+        self._show(
+            key,
+            lambda: FireEditWindow(self.api, self, self.user, fire_id)
+        )
+
+    # =========================
+    # CORE NAV SYSTEM
+    # =========================
+
+    def _show(self, name, builder):
         if name not in self.screens:
             self.screens[name] = builder()
             self.stack.addWidget(self.screens[name])
 
         self.stack.setCurrentWidget(self.screens[name])
 
-    # 🔐 LOGIN
-    def go_to_login(self):
-        self.show_screen("login", lambda: LoginWindow(self.api, self))
+    def _reset_screens(self, except_keys=None):
+        except_keys = set(except_keys or [])
 
-    # 🏠 MAIN MENU
-    def go_to_main(self, user):
-        self.user = user
-        self.show_screen("main", lambda: MainMenu(user, self.api, self))
+        for key in list(self.screens.keys()):
+            if key in except_keys:
+                continue
 
-    # 👥 USERS
-    def go_to_users(self):
-        self.show_screen(
-            "users",
-            lambda: UsersWindow(self.api, self)
-        )
+            widget = self.screens.pop(key)
+            self.stack.removeWidget(widget)
+            widget.deleteLater()
 
-    # 🔥 CREATE FIRE
-    def go_to_fire_create(self, user):
-        self.show_screen(
-            "fire_create",
-            lambda: FireCreateWindow(self.api, self, user)
-        )
-
-    # 🔙 назад (к главному меню)
     def go_back(self):
-        self.stack.setCurrentWidget(self.screens["main"])
-
-    def go_to_fire_list(self, user):
-        self.show_screen(
-            "fire_list",
-            lambda: FireListWindow(self.api, self, user)
-        )
-
-
-    def go_to_fire_edit(self, user, fire_id):
-        self.show_screen(
-            "fire_edit",
-            lambda: FireEditWindow(self.api, self, user, fire_id)
-        )
+        if "main" in self.screens:
+            self.stack.setCurrentWidget(self.screens["main"])
