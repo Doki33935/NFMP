@@ -33,6 +33,22 @@ REFERENCE_MAP = {
 }
 
 
+
+
+
+# =========================
+# GET SELSOVETS BY MUNICIPALITY
+# =========================
+@router.get("/selsovets")
+def get_selsovets(municipality_id: int | None = None, db: Session = Depends(get_db)):
+    query = db.query(Selsovet)
+
+    if municipality_id:
+        query = query.filter(Selsovet.municipality_id == municipality_id)
+
+    return query.order_by(Selsovet.name).all()
+
+
 # =========================
 # GET ALL ITEMS BY TYPE
 # =========================
@@ -47,16 +63,3 @@ def get_reference(ref_type: str, db: Session = Depends(get_db)):
         )
 
     return db.query(model).order_by(model.name).all()
-
-
-# =========================
-# GET SELSOVETS BY MUNICIPALITY
-# =========================
-@router.get("/selsovets")
-def get_selsovets(municipality_id: int | None = None, db: Session = Depends(get_db)):
-    query = db.query(Selsovet)
-
-    if municipality_id:
-        query = query.filter(Selsovet.municipality_id == municipality_id)
-
-    return query.order_by(Selsovet.name).all()

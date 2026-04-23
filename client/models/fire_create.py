@@ -1,11 +1,13 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
+
 from models.participants import FireParticipantEventInDTO
+
 
 @dataclass
 class FireCreateDTO:
-    fire_date: datetime
+    fire_date: date
 
     is_forest: bool
     land_type_id: int
@@ -36,8 +38,11 @@ class FireCreateDTO:
 
     participants: List[FireParticipantEventInDTO] = field(default_factory=list)
 
+    # =========================
+    # SERIALIZE
+    # =========================
     def to_dict(self) -> dict:
-        return {
+        data = {
             "fire_date": self.fire_date.isoformat(),
             "is_forest": self.is_forest,
             "land_type_id": self.land_type_id,
@@ -58,3 +63,6 @@ class FireCreateDTO:
             "external_card_number": self.external_card_number,
             "participants": [p.to_dict() for p in self.participants],
         }
+
+        # ✅ УБИРАЕМ None (очень важно)
+        return {k: v for k, v in data.items() if v is not None}

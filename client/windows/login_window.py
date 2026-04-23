@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt, QObject, Signal, QThread, QMetaObject
 
 
 class LoginWorker(QObject):
-    finished = Signal(object)   # success user
+    finished = Signal(object)
     error = Signal(str)
 
     def __init__(self, api, username, password):
@@ -37,7 +37,7 @@ class LoginWindow(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        title = QLabel("🔥 Система учета\nландшафтных пожаров")
+        title = QLabel("Система учета\nландшафтных пожаров")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("""
             font-size: 24px;

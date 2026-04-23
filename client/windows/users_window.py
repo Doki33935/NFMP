@@ -1,6 +1,8 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QComboBox, QMessageBox
+    QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox
 )
+
+from widgets.safe_combo_box import SafeComboBox
 
 
 class UsersWindow(QWidget):
@@ -15,7 +17,7 @@ class UsersWindow(QWidget):
         self.setLayout(self.layout)
 
     def init_ui(self):
-        title = QLabel("👥 Создание пользователя")
+        title = QLabel("Создание пользователя")
         title.setStyleSheet("font-size: 18px; color: #ff3b30;")
         self.layout.addWidget(title)
 
@@ -29,7 +31,7 @@ class UsersWindow(QWidget):
         self.full_name = QLineEdit()
         self.full_name.setPlaceholderText("ФИО")
 
-        self.role = QComboBox()
+        self.role = SafeComboBox()
         self.role.addItems([
             "dispatcher",
             "inspector",
@@ -41,7 +43,7 @@ class UsersWindow(QWidget):
         create_btn = QPushButton("Создать пользователя")
         create_btn.clicked.connect(self.create_user)
 
-        back_btn = QPushButton("← Назад")
+        back_btn = QPushButton("Назад")
         back_btn.clicked.connect(self.app.go_back)
 
         # Результат
@@ -65,14 +67,14 @@ class UsersWindow(QWidget):
                 self.role.currentText()
             )
 
-            # ✅ popup успеха
+            # popup успеха
             msg = QMessageBox(self)
             msg.setWindowTitle("Успех")
             msg.setText("Пользователь успешно создан")
             msg.setIcon(QMessageBox.Information)
             msg.exec()
 
-            # 👉 возврат в главное меню
+            # возврат в главное меню
             self.app.go_to_main(self.app.user)
 
         except Exception as e:

@@ -20,7 +20,7 @@ class MainMenu(QWidget):
         role_name = RoleService.get_role_name(self.user.role)
 
         title = QLabel(
-            f"🔥 Добро пожаловать\n\n{role_name}\n{self.user.full_name}"
+            f"Добро пожаловать\n\n{role_name}\n{self.user.full_name}"
         )
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("""
@@ -44,10 +44,10 @@ class MainMenu(QWidget):
 
     def add_action_button(self, action):
         mapping = {
-            "create_fire": ("➕ Заполнить КУЛП", self.open_create_fire),
-            "fire_list": ("📄 Список КУЛП", self.open_fire_list),
-            "users": ("👥 Управление пользователями", self.open_users),
-            "monitoring": ("📊 Мониторинг", self.open_monitoring),
+            "create_fire": ("Заполнить КУЛП", self.open_create_fire),
+            "fire_list": ("Список КУЛП", self.open_fire_list),
+            "users": ("Управление пользователями", self.open_users),
+            "monitoring": ("Мониторинг", self.open_monitoring),
         }
 
         text, handler = mapping[action]

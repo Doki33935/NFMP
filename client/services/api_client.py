@@ -49,10 +49,10 @@ class ApiClient:
     # FIRES
     # =========================
 
-    def create_fire(self, fire: dict):
+    def create_fire(self, fire: FireCreateDTO):
         response = requests.post(
             f"{self.base_url}/fires/",
-            json=fire
+            json=fire.to_dict()
         )
 
         if response.status_code != 200:
@@ -121,6 +121,22 @@ class ApiClient:
     def get_references(self, ref_type):
         response = requests.get(
             f"{self.base_url}/references/{ref_type}"
+        )
+
+        if response.status_code != 200:
+            raise Exception(response.text)
+
+        return response.json()
+    
+    def get_selsovets(self, municipality_id=None):
+        params = {}
+
+        if municipality_id:
+            params["municipality_id"] = municipality_id
+
+        response = requests.get(
+            f"{self.base_url}/references/selsovets",
+            params=params
         )
 
         if response.status_code != 200:

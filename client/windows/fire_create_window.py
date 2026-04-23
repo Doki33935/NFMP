@@ -1,12 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout,
-    QLineEdit, QComboBox, QLabel, QPushButton,
+    QLineEdit, QLabel, QPushButton,
     QHBoxLayout, QScrollArea, QFrame
 )
 
 from services.workers.reference_worker import ReferenceWorker
 from services.fire_create_service import FireCreateService
 from widgets.fire_date_widget import FireDateWidget
+from widgets.safe_combo_box import SafeComboBox
 
 
 class FireCreateWindow(QWidget):
@@ -51,6 +52,10 @@ class FireCreateWindow(QWidget):
         self.build_ui()
         self.fill_data()
 
+        self.on_fire_type_changed(self.is_forest.currentText())
+        self.on_right_of_way_index_changed(self.right_of_way.currentIndex())
+        self.on_municipality_changed(self.municipality.currentIndex())
+
     # =========================
     # DATA
     # =========================
@@ -60,6 +65,7 @@ class FireCreateWindow(QWidget):
     def fill_data(self):
         self.fill_municipalities()
         self.fill_forestry()
+        self.fill_land_types()
 
     # =========================
     # UI BUILD
@@ -88,7 +94,8 @@ class FireCreateWindow(QWidget):
 
         # signals
         self.is_forest.currentTextChanged.connect(self.on_fire_type_changed)
-        self.right_of_way.currentTextChanged.connect(self.on_right_of_way_changed)
+        self.right_of_way.currentIndexChanged.connect(self.on_right_of_way_index_changed)
+        self.municipality.currentIndexChanged.connect(self.on_municipality_changed)
 
     # =========================
     # SECTION HELPERS
@@ -121,15 +128,15 @@ class FireCreateWindow(QWidget):
 
         self.fire_date = FireDateWidget()
 
-        self.is_forest = QComboBox()
-        self.is_forest.addItems(["Сухая трава", "Лес"])
+        self.is_forest = SafeComboBox()
+        self.is_forest.addItems(["", "Сухая трава", "Лес"])
 
-        self.land_type = QLineEdit()
+        self.land_type = SafeComboBox()
         self.area = QLineEdit()
 
         form.addRow("Дата", self.fire_date)
         form.addRow("Тип", self.is_forest)
-        form.addRow("Земли", self.land_type)
+        form.addRow("Состав земли", self.land_type)
         form.addRow("Площадь", self.area)
 
         frame.layout().addLayout(form)
@@ -146,8 +153,8 @@ class FireCreateWindow(QWidget):
         self.address = QLineEdit()
         self.comment = QLineEdit()
 
-        self.municipality = QComboBox()
-        self.settlement = QLineEdit()
+        self.municipality = SafeComboBox()
+        self.settlement = SafeComboBox()
 
         self.coords = QLabel("📍 координаты (потом карта)")
 
@@ -179,12 +186,13 @@ class FireCreateWindow(QWidget):
         form.addRow(self.wrap_layout(self.participants_container))
 
         # forestry + road
-        self.forestry = QComboBox()
+        self.forestry = SafeComboBox()
 
-        self.right_of_way = QComboBox()
+        self.right_of_way = SafeComboBox()
         self.right_of_way.addItems(["Нет", "Да"])
 
-        self.right_of_way_type = QLineEdit()
+        self.right_of_way_type = SafeComboBox()
+
         self.owner = QLineEdit()
 
         self.source = QLineEdit()
@@ -211,14 +219,38 @@ class FireCreateWindow(QWidget):
     def fill_municipalities(self):
         self.municipality.clear()
 
+        self.municipality.addItem("", None)
         for m in self.references["municipalities"]:
             self.municipality.addItem(m["name"], m["id"])
+
+    def fill_land_types(self):
+        self.land_type.clear()
+
+        self.land_type.addItem("", None)
+        for lt in self.references["land_types"]:
+            self.land_type.addItem(lt["name"], lt["id"])
 
     def fill_forestry(self):
         self.forestry.clear()
 
+        self.forestry.addItem("", None)
         for f in self.references["forestry"]:
             self.forestry.addItem(f["name"], f["id"])
+
+    def fill_right_of_way_types(self):
+        self.right_of_way_type.clear()
+
+        self.right_of_way_type.addItem("")
+        self.right_of_way_type.addItem(
+            "Полоса отвода железнодорожных путей", "railway"
+        )
+        self.right_of_way_type.addItem(
+            "Полоса отвода автомобильной дороги", "road"
+        )
+        self.right_of_way_type.addItem(
+            "Полоса отвода линии электропередачи", "powerline"
+        )
+
 
     # =========================
     # PARTICIPANTS
@@ -226,10 +258,13 @@ class FireCreateWindow(QWidget):
     def add_participant_row(self):
         row = QHBoxLayout()
 
-        participant = QComboBox()
-        tech_type = QComboBox()
+        participant = SafeComboBox()
+        tech_type = SafeComboBox()
         time = QLineEdit()
         time.setPlaceholderText("HH:MM")
+
+        participant.addItem("", None)
+        tech_type.addItem("", None)
 
         for p in self.references["participants"]:
             participant.addItem(p["name"], p["id"])
@@ -272,17 +307,49 @@ class FireCreateWindow(QWidget):
         if not is_forest:
             self.forestry.setCurrentIndex(-1)
 
-    def on_right_of_way_changed(self, value):
+    def on_right_of_way_index_changed(self, index):
+        value = self.right_of_way.itemText(index)
         enabled = (value == "Да")
 
         self.right_of_way_type.setVisible(enabled)
         self.owner.setVisible(enabled)
 
+        if enabled:
+            self.fill_right_of_way_types()
+
+        if not enabled:
+            self.right_of_way_type.clear()
+            self.owner.clear()
+
+    def load_selsovets(self, municipality_id):
+        selsovets = self.api.get_selsovets(municipality_id)
+
+        self.settlement.clear()
+
+        if not selsovets:
+            self.settlement.setVisible(False)
+            return
+
+        self.settlement.setVisible(True)
+        self.settlement.addItem("", None)
+
+        for s in selsovets:
+            self.settlement.addItem(s["name"], s["id"])
+
+    def on_municipality_changed(self, index):
+        municipality_id = self.municipality.currentData()
+
+        if not municipality_id:
+            self.settlement.clear()
+            self.settlement.setVisible(False)
+            return
+
+        self.load_selsovets(municipality_id)
+
     # =========================
     # SAVE
     # =========================
     def save(self):
-        data = self.service.build_payload(self)
-
-        self.api.create_fire(data)
+        dto = self.service.build_dto(self)
+        self.api.create_fire(dto)
         self.app.go_to_main(self.user)

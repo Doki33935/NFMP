@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String
+from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String, Date
 from sqlalchemy.orm import relationship
 from db.base import Base
 
@@ -14,7 +14,7 @@ class Fire(Base):
     # =========================
     # 🔥 EVENT
     # =========================
-    fire_date = Column(DateTime, nullable=False)
+    fire_date = Column(Date, nullable=False)
     time_msg = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
 

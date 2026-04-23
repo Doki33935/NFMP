@@ -8,7 +8,7 @@ from app import App
 def main():
     app_qt = QApplication(sys.argv)
 
-    # 🎨 Глобальный стиль приложения
+    # Глобальный стиль приложения
     app_qt.setStyleSheet("""
         QWidget {
             background-color: #1e1e1e;
@@ -81,12 +81,12 @@ def main():
         }
     """)
 
-    # 🔌 API
+    # API
     api = ApiClient()
 
-    # 🧠 Основное приложение
+    # Основное приложение
     window = App(api)
-    window.setWindowTitle("🔥 NFMP - Учет пожаров")
+    window.setWindowTitle("NFMP - Учет ландшафтных пожаров")
     window.resize(500, 600)
     window.show()
 

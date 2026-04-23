@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from schemas.participant import FireParticipantEventIn, FireParticipantEventOut
 
 class FireCreate(BaseModel):
-    fire_date: datetime
+    fire_date: date
 
     is_forest: bool
     land_type_id: int
@@ -41,7 +41,7 @@ class FireCreate(BaseModel):
 class FireResponse(BaseModel):
     id: int
 
-    fire_date: datetime
+    fire_date: date
     end_time: Optional[datetime] = None
 
     is_forest: bool

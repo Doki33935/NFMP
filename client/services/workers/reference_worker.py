@@ -8,4 +8,5 @@ class ReferenceWorker:
             "municipalities": self.api.get_references("municipalities"),
             "participants": self.api.get_references("fire-participants"),
             "tech_types": self.api.get_references("tech-types"),
+            "land_types": self.api.get_references("land-types"),
         }
