@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
+from datetime import datetime
 
 from db.session import SessionLocal
 from models.fire import Fire
@@ -49,8 +50,6 @@ def replace_events(db: Session, fire_id: int, participants):
                 participant_id=p.participant_id,
                 arrival_time=p.arrival_time,
                 tech_type_id=p.tech_type_id,
-                role=p.role,
-                people_count=p.people_count,
                 comment=p.comment,
             )
         )
@@ -69,6 +68,7 @@ def create_fire(data: FireCreate, db: Session = Depends(get_db)):
 
     fire = Fire(
         **fire_data,
+        time_msg=datetime.now(),
         status="OPEN"
     )
 

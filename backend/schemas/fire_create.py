@@ -21,6 +21,7 @@ class FireCreate(BaseModel):
     longitude: Optional[float] = None
 
     forestry_id: Optional[int] = None
+    reason_id: Optional[int] = None
 
     right_of_way: Optional[bool] = None
     right_of_way_type: Optional[str] = None
@@ -59,6 +60,7 @@ class FireResponse(BaseModel):
     longitude: Optional[float] = None
 
     forestry_id: Optional[int] = None
+    reason_id: Optional[int] = None
 
     right_of_way: Optional[bool] = None
     right_of_way_type: Optional[str] = None

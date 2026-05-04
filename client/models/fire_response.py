@@ -25,6 +25,7 @@ class FireResponseDTO:
     longitude: Optional[float]
 
     forestry_id: Optional[int]
+    reason_id: Optional[int]
 
     right_of_way: Optional[bool]
     right_of_way_type: Optional[str]
@@ -58,6 +59,7 @@ class FireResponseDTO:
             latitude=data.get("latitude"),
             longitude=data.get("longitude"),
             forestry_id=data.get("forestry_id"),
+            reason_id=data.get("reason_id"),
             right_of_way=data.get("right_of_way"),
             right_of_way_type=data.get("right_of_way_type"),
             owner=data.get("owner"),

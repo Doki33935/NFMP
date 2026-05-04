@@ -11,29 +11,23 @@ class MainMenu(QWidget):
         self.user = user
         self.app = app
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(24, 24, 24, 24)
+        self.layout.setSpacing(12)
 
         self.init_ui()
 
     def init_ui(self):
         role_name = RoleService.get_role_name(self.user.role)
 
-        title = QLabel(
-            f"Добро пожаловать\n\n{role_name}\n{self.user.full_name}"
-        )
+        title = QLabel(f"{role_name}\n{self.user.full_name}")
+        title.setObjectName("pageTitle")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("""
-            font-size: 20px;
-            color: #ff3b30;
-            font-weight: bold;
-        """)
 
+        self.layout.addStretch()
         self.layout.addWidget(title)
-        self.layout.addSpacing(30)
-
+        self.layout.addSpacing(18)
         self.setup_buttons()
-
         self.layout.addStretch()
 
     def setup_buttons(self):
@@ -52,10 +46,9 @@ class MainMenu(QWidget):
 
         text, handler = mapping[action]
 
-        btn = QPushButton(text)
-        btn.clicked.connect(handler)
-
-        self.layout.addWidget(btn)
+        button = QPushButton(text)
+        button.clicked.connect(handler)
+        self.layout.addWidget(button)
 
     def open_users(self):
         self.app.go_to_users()

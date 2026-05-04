@@ -24,6 +24,7 @@ class FireCreateDTO:
     longitude: Optional[float] = None
 
     forestry_id: Optional[int] = None
+    reason_id: Optional[int] = None
 
     right_of_way: Optional[bool] = None
     right_of_way_type: Optional[str] = None
@@ -54,6 +55,7 @@ class FireCreateDTO:
             "latitude": self.latitude,
             "longitude": self.longitude,
             "forestry_id": self.forestry_id,
+            "reason_id": self.reason_id,
             "right_of_way": self.right_of_way,
             "right_of_way_type": self.right_of_way_type,
             "owner": self.owner,

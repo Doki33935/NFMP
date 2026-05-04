@@ -1,11 +1,12 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout,
-    QLineEdit, QLabel, QPushButton,
-    QHBoxLayout, QScrollArea, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
+    QLineEdit, QLabel, QPushButton, QScrollArea, QFrame, QSizePolicy,
+    QMessageBox, QPlainTextEdit,
 )
 
-from services.workers.reference_worker import ReferenceWorker
 from services.fire_create_service import FireCreateService
+from services.workers.reference_worker import ReferenceWorker
 from widgets.fire_date_widget import FireDateWidget
 from widgets.safe_combo_box import SafeComboBox
 
@@ -17,190 +18,164 @@ class FireCreateWindow(QWidget):
         self.api = api
         self.app = app
         self.user = user
-
         self.service = FireCreateService(user)
         self.worker = ReferenceWorker(api)
-
-        self.setMinimumSize(800, 600)
 
         self.references = {}
         self.participant_rows = []
 
-        # =========================
-        # LAYOUT ROOT
-        # =========================
-        self.main_layout = QVBoxLayout(self)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-
-        container = QWidget()
-        self.form_layout = QVBoxLayout(container)
-        self.form_layout.setSpacing(20)
-
-        scroll.setWidget(container)
-        self.main_layout.addWidget(scroll)
-
-        # =========================
-        # LOAD DATA
-        # =========================
+        self.setMinimumSize(860, 720)
         self.load_references()
-
-        # =========================
-        # UI
-        # =========================
         self.build_ui()
         self.fill_data()
 
-        self.on_fire_type_changed(self.is_forest.currentText())
-        self.on_right_of_way_index_changed(self.right_of_way.currentIndex())
-        self.on_municipality_changed(self.municipality.currentIndex())
+        self.on_fire_type_changed()
+        self.on_right_of_way_changed()
+        self.on_municipality_changed()
 
-    # =========================
-    # DATA
-    # =========================
     def load_references(self):
         self.references = self.worker.load_all()
 
-    def fill_data(self):
-        self.fill_municipalities()
-        self.fill_forestry()
-        self.fill_land_types()
-
-    # =========================
-    # UI BUILD
-    # =========================
     def build_ui(self):
-        self.form_layout.addWidget(self.section_event())
-        self.form_layout.addWidget(self.section_location())
-        self.form_layout.addWidget(self.section_context())
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 18, 20, 18)
+        root.setSpacing(14)
 
-        bottom = QHBoxLayout()
+        title = QLabel("Создание карточки пожара")
+        title.setObjectName("pageTitle")
+        subtitle = QLabel("Основные сведения, место, причина и участники реагирования")
+        subtitle.setObjectName("muted")
+        root.addWidget(title)
+        root.addWidget(subtitle)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        container = QWidget()
+        content = QVBoxLayout(container)
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(14)
+        content.addWidget(self.section_event())
+        content.addWidget(self.section_location())
+        content.addWidget(self.section_context())
+        content.addWidget(self.section_participants())
+        content.addStretch()
+
+        scroll.setWidget(container)
+        root.addWidget(scroll, 1)
+
+        footer = QHBoxLayout()
+        footer.addStretch()
 
         back = QPushButton("Назад")
-        save = QPushButton("Создать КУЛП")
-
         back.setObjectName("secondary")
-
         back.clicked.connect(self.app.go_back)
+
+        save = QPushButton("Создать КУЛП")
         save.clicked.connect(self.save)
 
-        bottom.addStretch()
-        bottom.addWidget(back)
-        bottom.addWidget(save)
-        bottom.addStretch()
+        footer.addWidget(back)
+        footer.addWidget(save)
+        root.addLayout(footer)
 
-        self.form_layout.addLayout(bottom)
-
-        # signals
-        self.is_forest.currentTextChanged.connect(self.on_fire_type_changed)
-        self.right_of_way.currentIndexChanged.connect(self.on_right_of_way_index_changed)
-        self.municipality.currentIndexChanged.connect(self.on_municipality_changed)
-
-    # =========================
-    # SECTION HELPERS
-    # =========================
-    def section(self, title):
+    def section(self, title, hint=None):
         frame = QFrame()
-        frame.setStyleSheet("""
-            QFrame {
-                background: #252525;
-                border-radius: 10px;
-                padding: 10px;
-            }
-        """)
-
+        frame.setObjectName("section")
         layout = QVBoxLayout(frame)
+        layout.setContentsMargins(18, 16, 18, 18)
+        layout.setSpacing(12)
 
         label = QLabel(title)
-        label.setStyleSheet("font-size: 16px; font-weight: bold; color: #ff3b30;")
-
+        label.setObjectName("sectionTitle")
         layout.addWidget(label)
+
+        if hint:
+            hint_label = QLabel(hint)
+            hint_label.setObjectName("muted")
+            hint_label.setWordWrap(True)
+            layout.addWidget(hint_label)
+
         return frame
 
-    # =========================
-    # SECTION 1
-    # =========================
     def section_event(self):
-        frame = self.section("🔥 Событие")
-
-        form = QFormLayout()
+        frame = self.section("Событие")
+        form = self.form()
 
         self.fire_date = FireDateWidget()
 
         self.is_forest = SafeComboBox()
-        self.is_forest.addItems(["", "Сухая трава", "Лес"])
+        self.is_forest.addItem("", None)
+        self.is_forest.addItem("Сухая трава", False)
+        self.is_forest.addItem("Лес", True)
+        self.is_forest.currentIndexChanged.connect(self.on_fire_type_changed)
 
         self.land_type = SafeComboBox()
-        self.area = QLineEdit()
+        self.reason = SafeComboBox()
 
-        form.addRow("Дата", self.fire_date)
-        form.addRow("Тип", self.is_forest)
+        self.area = QLineEdit()
+        self.area.setPlaceholderText("га")
+
+        form.addRow("Дата пожара", self.fire_date)
+        form.addRow("Вид пожара", self.is_forest)
         form.addRow("Состав земли", self.land_type)
+        form.addRow("Причина", self.reason)
         form.addRow("Площадь", self.area)
 
         frame.layout().addLayout(form)
         return frame
 
-    # =========================
-    # SECTION 2
-    # =========================
     def section_location(self):
-        frame = self.section("📍 Локация")
-
-        form = QFormLayout()
+        frame = self.section("Место пожара")
+        form = self.form()
 
         self.address = QLineEdit()
+        self.address.setPlaceholderText("Адрес или ориентир")
+
         self.comment = QLineEdit()
+        self.comment.setPlaceholderText("Комментарий к адресу")
 
         self.municipality = SafeComboBox()
+        self.municipality.currentIndexChanged.connect(self.on_municipality_changed)
         self.settlement = SafeComboBox()
 
-        self.coords = QLabel("📍 координаты (потом карта)")
+        coords = QLabel("Координаты будут подключены отдельным модулем карты")
+        coords.setObjectName("muted")
 
         form.addRow("Адрес", self.address)
         form.addRow("Комментарий", self.comment)
         form.addRow("МО", self.municipality)
         form.addRow("Сельсовет", self.settlement)
-        form.addRow("Координаты", self.coords)
+        form.addRow("Координаты", coords)
 
         frame.layout().addLayout(form)
         return frame
 
-    # =========================
-    # SECTION 3
-    # =========================
     def section_context(self):
-        frame = self.section("🧭 Контекст")
+        frame = self.section("Контекст")
+        form = self.form()
 
-        form = QFormLayout()
-
-        # participants
-        self.participants_container = QVBoxLayout()
-
-        add_btn = QPushButton("➕ Добавить участника")
-        add_btn.clicked.connect(self.add_participant_row)
-
-        form.addRow(QLabel("Участники"))
-        form.addRow(add_btn)
-        form.addRow(self.wrap_layout(self.participants_container))
-
-        # forestry + road
         self.forestry = SafeComboBox()
 
         self.right_of_way = SafeComboBox()
-        self.right_of_way.addItems(["Нет", "Да"])
+        self.right_of_way.addItem("Нет", False)
+        self.right_of_way.addItem("Да", True)
+        self.right_of_way.currentIndexChanged.connect(self.on_right_of_way_changed)
 
         self.right_of_way_type = SafeComboBox()
-
         self.owner = QLineEdit()
+        self.owner.setPlaceholderText("Правообладатель")
 
         self.source = QLineEdit()
-        self.extra = QLineEdit()
+        self.source.setPlaceholderText("Источник сообщения")
+
+        self.extra = QPlainTextEdit()
+        self.extra.setPlaceholderText("Дополнительные сведения")
+        self.extra.setFixedHeight(92)
 
         form.addRow("Лесничество", self.forestry)
         form.addRow("Полоса отвода", self.right_of_way)
-        form.addRow("Тип", self.right_of_way_type)
+        form.addRow("Тип полосы", self.right_of_way_type)
         form.addRow("Владелец", self.owner)
         form.addRow("Источник", self.source)
         form.addRow("Дополнительно", self.extra)
@@ -208,148 +183,175 @@ class FireCreateWindow(QWidget):
         frame.layout().addLayout(form)
         return frame
 
-    def wrap_layout(self, layout):
-        w = QWidget()
-        w.setLayout(layout)
-        return w
+    def section_participants(self):
+        frame = self.section(
+            "Участники пожара",
+            "Добавляйте организации и технику отдельными карточками.",
+        )
 
-    # =========================
-    # DATA FILL
-    # =========================
-    def fill_municipalities(self):
-        self.municipality.clear()
+        controls = QHBoxLayout()
+        add_btn = QPushButton("Добавить участника")
+        add_btn.setObjectName("secondary")
+        add_btn.clicked.connect(self.add_participant_row)
+        controls.addStretch()
+        controls.addWidget(add_btn)
+        frame.layout().addLayout(controls)
 
-        self.municipality.addItem("", None)
-        for m in self.references["municipalities"]:
-            self.municipality.addItem(m["name"], m["id"])
+        self.participants_container = QVBoxLayout()
+        self.participants_container.setSpacing(10)
 
-    def fill_land_types(self):
-        self.land_type.clear()
+        holder = QWidget()
+        holder.setLayout(self.participants_container)
+        holder.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        frame.layout().addWidget(holder)
 
-        self.land_type.addItem("", None)
-        for lt in self.references["land_types"]:
-            self.land_type.addItem(lt["name"], lt["id"])
+        return frame
 
-    def fill_forestry(self):
-        self.forestry.clear()
+    def form(self):
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        form.setLabelAlignment(Qt.AlignRight)
+        form.setFormAlignment(Qt.AlignTop)
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
+        return form
 
-        self.forestry.addItem("", None)
-        for f in self.references["forestry"]:
-            self.forestry.addItem(f["name"], f["id"])
+    def fill_data(self):
+        self.fill_combo(self.municipality, self.references.get("municipalities", []))
+        self.fill_combo(self.land_type, self.references.get("land_types", []))
+        self.fill_combo(self.forestry, self.references.get("forestry", []))
+        self.fill_combo(self.reason, self.references.get("reasons", []))
+
+    def fill_combo(self, combo, items):
+        combo.clear()
+        combo.addItem("", None)
+
+        for item in items:
+            combo.addItem(item["name"], item["id"])
 
     def fill_right_of_way_types(self):
         self.right_of_way_type.clear()
+        self.right_of_way_type.addItem("", None)
+        self.right_of_way_type.addItem("Полоса отвода железнодорожных путей", "railway")
+        self.right_of_way_type.addItem("Полоса отвода автомобильной дороги", "road")
+        self.right_of_way_type.addItem("Полоса отвода линии электропередачи", "powerline")
 
-        self.right_of_way_type.addItem("")
-        self.right_of_way_type.addItem(
-            "Полоса отвода железнодорожных путей", "railway"
-        )
-        self.right_of_way_type.addItem(
-            "Полоса отвода автомобильной дороги", "road"
-        )
-        self.right_of_way_type.addItem(
-            "Полоса отвода линии электропередачи", "powerline"
-        )
-
-
-    # =========================
-    # PARTICIPANTS
-    # =========================
     def add_participant_row(self):
-        row = QHBoxLayout()
+        row_frame = QFrame()
+        row_frame.setObjectName("participantRow")
+        row_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+
+        layout = QVBoxLayout(row_frame)
+        layout.setContentsMargins(12, 10, 12, 12)
+        layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        title = QLabel(f"Участник #{len(self.participant_rows) + 1}")
+        title.setObjectName("fieldTitle")
+
+        remove_btn = QPushButton("x")
+        remove_btn.setObjectName("iconButton")
+        remove_btn.setFixedWidth(34)
+        remove_btn.clicked.connect(lambda: self.remove_participant_row(row_frame))
+
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(remove_btn)
 
         participant = SafeComboBox()
         tech_type = SafeComboBox()
-        time = QLineEdit()
-        time.setPlaceholderText("HH:MM")
+        arrival = QLineEdit()
+        arrival.setPlaceholderText("HH:MM")
+        arrival.setMaximumWidth(150)
 
-        participant.addItem("", None)
-        tech_type.addItem("", None)
+        self.fill_combo(participant, self.references.get("participants", []))
+        self.fill_combo(tech_type, self.references.get("tech_types", []))
 
-        for p in self.references["participants"]:
-            participant.addItem(p["name"], p["id"])
+        fields = QFormLayout()
+        fields.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        fields.setHorizontalSpacing(12)
+        fields.setVerticalSpacing(8)
+        fields.addRow("Организация", participant)
+        fields.addRow("Техника", tech_type)
+        fields.addRow("Прибытие", arrival)
 
-        for t in self.references["tech_types"]:
-            tech_type.addItem(t["name"], t["id"])
+        layout.addLayout(header)
+        layout.addLayout(fields)
 
-        remove_btn = QPushButton("❌")
-        remove_btn.clicked.connect(lambda: self.remove_participant_row(row))
+        self.participants_container.addWidget(row_frame)
+        self.participant_rows.append((row_frame, participant, tech_type, arrival))
 
-        row.addWidget(participant)
-        row.addWidget(tech_type)
-        row.addWidget(time)
-        row.addWidget(remove_btn)
-
-        self.participants_container.addLayout(row)
-
-        self.participant_rows.append((row, participant, tech_type, time))
-
-    def remove_participant_row(self, row):
-        for i in reversed(range(row.count())):
-            w = row.itemAt(i).widget()
-            if w:
-                w.deleteLater()
-
-        self.participants_container.removeItem(row)
-
+    def remove_participant_row(self, row_frame):
+        row_frame.deleteLater()
         self.participant_rows = [
-            x for x in self.participant_rows if x[0] != row
+            row for row in self.participant_rows if row[0] != row_frame
         ]
 
-    # =========================
-    # LOGIC
-    # =========================
-    def on_fire_type_changed(self, value):
-        is_forest = (value == "Лес")
-
+    def on_fire_type_changed(self, *args):
+        is_forest = self.is_forest.currentData() is True
         self.forestry.setVisible(is_forest)
 
         if not is_forest:
-            self.forestry.setCurrentIndex(-1)
+            self.forestry.setCurrentIndex(0)
 
-    def on_right_of_way_index_changed(self, index):
-        value = self.right_of_way.itemText(index)
-        enabled = (value == "Да")
-
+    def on_right_of_way_changed(self, *args):
+        enabled = self.right_of_way.currentData() is True
         self.right_of_way_type.setVisible(enabled)
         self.owner.setVisible(enabled)
 
         if enabled:
             self.fill_right_of_way_types()
-
-        if not enabled:
+        else:
             self.right_of_way_type.clear()
             self.owner.clear()
 
-    def load_selsovets(self, municipality_id):
-        selsovets = self.api.get_selsovets(municipality_id)
-
-        self.settlement.clear()
-
-        if not selsovets:
-            self.settlement.setVisible(False)
-            return
-
-        self.settlement.setVisible(True)
-        self.settlement.addItem("", None)
-
-        for s in selsovets:
-            self.settlement.addItem(s["name"], s["id"])
-
-    def on_municipality_changed(self, index):
+    def on_municipality_changed(self, *args):
         municipality_id = self.municipality.currentData()
 
+        self.settlement.clear()
+        self.settlement.addItem("", None)
+
         if not municipality_id:
-            self.settlement.clear()
             self.settlement.setVisible(False)
             return
 
-        self.load_selsovets(municipality_id)
+        for item in self.api.get_selsovets(municipality_id):
+            self.settlement.addItem(item["name"], item["id"])
 
-    # =========================
-    # SAVE
-    # =========================
+        self.settlement.setVisible(True)
+
     def save(self):
-        dto = self.service.build_dto(self)
-        self.api.create_fire(dto)
+        try:
+            self.validate_form()
+            dto = self.service.build_dto(self)
+            self.api.create_fire(dto)
+        except Exception as exc:
+            QMessageBox.warning(self, "Ошибка", str(exc))
+            return
+
+        QMessageBox.information(self, "Готово", "КУЛП составлена успешно")
         self.app.go_to_main(self.user)
+
+    def validate_form(self):
+        errors = []
+
+        if self.is_forest.currentData() is None:
+            errors.append("Выберите вид пожара")
+
+        if self.land_type.currentData() is None:
+            errors.append("Выберите состав земли")
+
+        if not self.address.text().strip():
+            errors.append("Укажите адрес или ориентир")
+
+        if self.municipality.currentData() is None:
+            errors.append("Выберите МО")
+
+        if self.is_forest.currentData() is True and self.forestry.currentData() is None:
+            errors.append("Для лесного пожара выберите лесничество")
+
+        if self.right_of_way.currentData() is True and self.right_of_way_type.currentData() is None:
+            errors.append("Для полосы отвода выберите тип полосы")
+
+        if errors:
+            raise ValueError("\n".join(errors))

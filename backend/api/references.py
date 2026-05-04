@@ -9,6 +9,7 @@ from models.municipalities import Municipality
 from models.selsovets import Selsovet
 from models.fire_participants import FireParticipant
 from models.tech_type import TechType
+from models.reasons import Reason
 
 router = APIRouter(prefix="/references", tags=["references"])
 
@@ -30,6 +31,7 @@ REFERENCE_MAP = {
     "municipalities": Municipality,
     "fire-participants": FireParticipant,
     "tech-types": TechType,
+    "reasons": Reason,
 }
 
 

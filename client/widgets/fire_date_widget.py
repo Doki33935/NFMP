@@ -12,7 +12,7 @@ class FireDateWidget(QWidget):
         self.setLayout(self.layout)
 
         # ←
-        self.btn_prev = QPushButton("◀")
+        self.btn_prev = QPushButton("<")
         self.btn_prev.clicked.connect(self.prev_day)
 
         # дата
@@ -21,7 +21,7 @@ class FireDateWidget(QWidget):
         self.label.setMinimumWidth(150)
 
         # →
-        self.btn_next = QPushButton("▶")
+        self.btn_next = QPushButton(">")
         self.btn_next.clicked.connect(self.next_day)
 
         self.layout.addWidget(self.btn_prev)
