@@ -67,6 +67,8 @@ class Fire(Base):
     # =========================
     # 🔗 RELATIONS (ТОЛЬКО FK-объекты)
     # =========================
+    dispatcher = relationship("User", foreign_keys=[dispatcher_id])
+    inspector = relationship("User", foreign_keys=[inspector_id])
     municipality = relationship("Municipality")
     selsovet = relationship("Selsovet")
     land_type = relationship("LandType")
@@ -77,3 +79,11 @@ class Fire(Base):
         backref="fire",
         cascade="all, delete-orphan"
     )
+
+    @property
+    def dispatcher_name(self):
+        return self.dispatcher.full_name if self.dispatcher else None
+
+    @property
+    def inspector_name(self):
+        return self.inspector.full_name if self.inspector else None

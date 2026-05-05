@@ -80,7 +80,9 @@ def create_fire(data: FireCreate, db: Session = Depends(get_db)):
     db.commit()
 
     fire = db.query(Fire).options(
-        joinedload(Fire.participant_events)
+        joinedload(Fire.participant_events),
+        joinedload(Fire.dispatcher),
+        joinedload(Fire.inspector),
     ).get(fire.id)
 
     return fire
@@ -95,7 +97,9 @@ def get_fires(
     db: Session = Depends(get_db)
 ):
     query = db.query(Fire).options(
-        joinedload(Fire.participant_events)
+        joinedload(Fire.participant_events),
+        joinedload(Fire.dispatcher),
+        joinedload(Fire.inspector),
     )
 
     if status:
@@ -110,7 +114,9 @@ def get_fires(
 @router.get("/{fire_id}", response_model=FireResponse)
 def get_fire(fire_id: int, db: Session = Depends(get_db)):
     fire = db.query(Fire).options(
-        joinedload(Fire.participant_events)
+        joinedload(Fire.participant_events),
+        joinedload(Fire.dispatcher),
+        joinedload(Fire.inspector),
     ).filter(Fire.id == fire_id).first()
 
     if not fire:
@@ -154,7 +160,9 @@ def update_fire(fire_id: int, data: FireUpdate, db: Session = Depends(get_db)):
     db.commit()
 
     fire = db.query(Fire).options(
-        joinedload(Fire.participant_events)
+        joinedload(Fire.participant_events),
+        joinedload(Fire.dispatcher),
+        joinedload(Fire.inspector),
     ).get(fire.id)
 
     return fire

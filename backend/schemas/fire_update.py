@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 
 class FireUpdate(BaseModel):
-    fire_date: Optional[datetime] = None
+    fire_date: Optional[date] = None
     end_time: Optional[datetime] = None
 
     is_forest: Optional[bool] = None

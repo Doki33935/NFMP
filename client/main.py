@@ -18,7 +18,7 @@ def main():
         }
 
         /* ===== INPUTS ===== */
-        QLineEdit, QComboBox, QPlainTextEdit {
+        QLineEdit, QComboBox, QPlainTextEdit, QDateEdit, QTimeEdit {
             padding: 8px;
             border-radius: 6px;
             background-color: #23262d;
@@ -29,11 +29,11 @@ def main():
             min-height: 30px;
         }
 
-        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {
+        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus, QDateEdit:focus, QTimeEdit:focus {
             border-color: #ef4444;
         }
 
-        QLineEdit:disabled, QComboBox:disabled, QPlainTextEdit:disabled {
+        QLineEdit:disabled, QComboBox:disabled, QPlainTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled {
             color: #8d96a6;
             background-color: #1f2229;
         }

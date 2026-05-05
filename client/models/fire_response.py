@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 from models.participants import FireParticipantEventOutDTO
 
@@ -7,7 +7,8 @@ from models.participants import FireParticipantEventOutDTO
 class FireResponseDTO:
     id: int
 
-    fire_date: datetime
+    fire_date: date
+    time_msg: Optional[datetime]
     end_time: Optional[datetime]
 
     is_forest: bool
@@ -35,7 +36,9 @@ class FireResponseDTO:
     extra: Optional[str]
 
     dispatcher_id: int
+    dispatcher_name: Optional[str]
     inspector_id: Optional[int]
+    inspector_name: Optional[str]
 
     external_card_number: Optional[str]
 
@@ -47,7 +50,8 @@ class FireResponseDTO:
     def from_dict(data: dict):
         return FireResponseDTO(
             id=data["id"],
-            fire_date=datetime.fromisoformat(data["fire_date"]),
+            fire_date=date.fromisoformat(data["fire_date"]),
+            time_msg=datetime.fromisoformat(data["time_msg"]) if data.get("time_msg") else None,
             end_time=datetime.fromisoformat(data["end_time"]) if data.get("end_time") else None,
             is_forest=data["is_forest"],
             land_type_id=data["land_type_id"],
@@ -66,7 +70,9 @@ class FireResponseDTO:
             source=data.get("source"),
             extra=data.get("extra"),
             dispatcher_id=data["dispatcher_id"],
+            dispatcher_name=data.get("dispatcher_name"),
             inspector_id=data.get("inspector_id"),
+            inspector_name=data.get("inspector_name"),
             external_card_number=data.get("external_card_number"),
             status=data["status"],
             participants=[

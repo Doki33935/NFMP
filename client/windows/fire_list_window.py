@@ -75,7 +75,7 @@ class FireListWindow(QWidget):
 
         for fire in fires:
             item = QListWidgetItem(
-                f"#{fire.id} | {fire.fire_date.date()} | {fire.address} | {fire.status}"
+                f"#{fire.id} | {fire.fire_date} | {fire.address} | {fire.status}"
             )
 
             item.setData(Qt.UserRole, fire.id)

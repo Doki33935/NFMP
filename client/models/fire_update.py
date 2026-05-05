@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 
 
 @dataclass
 class FireUpdateDTO:
-    fire_date: Optional[datetime] = None
+    fire_date: Optional[date] = None
     end_time: Optional[datetime] = None
 
     is_forest: Optional[bool] = None
@@ -41,7 +41,7 @@ class FireUpdateDTO:
 
     def to_dict(self) -> dict:
         return {
-            k: (v.isoformat() if isinstance(v, datetime) else v)
+            k: (v.isoformat() if isinstance(v, (datetime, date)) else v)
             for k, v in self.__dict__.items()
             if v is not None
         }

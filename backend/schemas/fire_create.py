@@ -43,6 +43,7 @@ class FireResponse(BaseModel):
     id: int
 
     fire_date: date
+    time_msg: datetime
     end_time: Optional[datetime] = None
 
     is_forest: bool
@@ -70,7 +71,9 @@ class FireResponse(BaseModel):
     extra: Optional[str] = None
 
     dispatcher_id: int
+    dispatcher_name: Optional[str] = None
     inspector_id: Optional[int] = None
+    inspector_name: Optional[str] = None
 
     external_card_number: Optional[str] = None
 
