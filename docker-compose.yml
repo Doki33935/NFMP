@@ -5,12 +5,14 @@ services:
     image: postgres:16
     container_name: fire_postgres
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: fire_user
-      POSTGRES_PASSWORD: fire_pass
-      POSTGRES_DB: fire_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -22,12 +24,29 @@ services:
     restart: always
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://fire_user:fire_pass@db:5432/fire_db
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
 
+  client-web:
+    image: node:20-alpine
+    container_name: fire_client_web
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client-web:/app
+      - client_web_node_modules:/app/node_modules
+
 volumes:
   postgres_data:
+  client_web_node_modules:

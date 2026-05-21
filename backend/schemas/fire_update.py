@@ -1,6 +1,7 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, date
+from schemas.participant import FireParticipantEventIn
 
 
 class FireUpdate(BaseModel):
@@ -18,9 +19,6 @@ class FireUpdate(BaseModel):
     municipality_id: Optional[int] = None
     selsovet_id: Optional[int] = None
 
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-
     forestry_id: Optional[int] = None
     reason_id: Optional[int] = None
 
@@ -31,9 +29,10 @@ class FireUpdate(BaseModel):
     source: Optional[str] = None
     extra: Optional[str] = None
 
-    inspector_id: Optional[int] = None
+    reviewer_id: Optional[int] = None
 
     external_card_number: Optional[str] = None
 
-    participants_ids: Optional[List[int]] = None
-    tech_types_ids: Optional[List[int]] = None
+    status: Optional[str] = None
+
+    participants: Optional[list[FireParticipantEventIn]] = None

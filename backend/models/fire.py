@@ -20,7 +20,7 @@ class Fire(Base):
 
     is_forest = Column(Boolean, nullable=False)
 
-    land_type_id = Column(Integer, ForeignKey("land_types.id"), nullable=False, index=True)
+    land_type_id = Column(Integer, ForeignKey("land_types.id"), nullable=True, index=True)
 
     area = Column(Float, nullable=True)
 
@@ -51,8 +51,8 @@ class Fire(Base):
     # =========================
     # 👤 USERS
     # =========================
-    dispatcher_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    inspector_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # =========================
     # 📄 EXTERNAL
@@ -65,10 +65,10 @@ class Fire(Base):
     status = Column(String, default="OPEN", nullable=False)
 
     # =========================
-    # 🔗 RELATIONS (ТОЛЬКО FK-объекты)
+    # 🔗 RELATIONS
     # =========================
-    dispatcher = relationship("User", foreign_keys=[dispatcher_id])
-    inspector = relationship("User", foreign_keys=[inspector_id])
+    creator = relationship("User", foreign_keys=[creator_id])
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
     municipality = relationship("Municipality")
     selsovet = relationship("Selsovet")
     land_type = relationship("LandType")
@@ -81,9 +81,9 @@ class Fire(Base):
     )
 
     @property
-    def dispatcher_name(self):
-        return self.dispatcher.full_name if self.dispatcher else None
+    def creator_name(self):
+        return self.creator.full_name if self.creator else None
 
     @property
-    def inspector_name(self):
-        return self.inspector.full_name if self.inspector else None
+    def reviewer_name(self):
+        return self.reviewer.full_name if self.reviewer else None

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, date
 from schemas.participant import FireParticipantEventIn, FireParticipantEventOut
 
@@ -7,7 +7,7 @@ class FireCreate(BaseModel):
     fire_date: date
 
     is_forest: bool
-    land_type_id: int
+    land_type_id: Optional[int] = None
 
     area: Optional[float] = None
 
@@ -16,9 +16,6 @@ class FireCreate(BaseModel):
 
     municipality_id: Optional[int] = None
     selsovet_id: Optional[int] = None
-
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
 
     forestry_id: Optional[int] = None
     reason_id: Optional[int] = None
@@ -30,13 +27,9 @@ class FireCreate(BaseModel):
     source: Optional[str] = None
     extra: Optional[str] = None
 
-    dispatcher_id: int
-
     external_card_number: Optional[str] = None
 
-    # 🔥 НОВАЯ ЛОГИКА
     participants: Optional[list[FireParticipantEventIn]] = []
-
 
 
 class FireResponse(BaseModel):
@@ -57,9 +50,6 @@ class FireResponse(BaseModel):
     municipality_id: Optional[int] = None
     selsovet_id: Optional[int] = None
 
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-
     forestry_id: Optional[int] = None
     reason_id: Optional[int] = None
 
@@ -70,17 +60,16 @@ class FireResponse(BaseModel):
     source: Optional[str] = None
     extra: Optional[str] = None
 
-    dispatcher_id: int
-    dispatcher_name: Optional[str] = None
-    inspector_id: Optional[int] = None
-    inspector_name: Optional[str] = None
+    creator_id: int
+    creator_name: Optional[str] = None
+    reviewer_id: Optional[int] = None
+    reviewer_name: Optional[str] = None
 
     external_card_number: Optional[str] = None
 
     status: str
 
-    # 🔥 НОВАЯ СТРУКТУРА
-    participants: list[FireParticipantEventOut] = []
+    participant_events: list[FireParticipantEventOut] = []
 
     class Config:
         from_attributes = True

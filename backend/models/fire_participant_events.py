@@ -11,7 +11,7 @@ class FireParticipantEvent(Base):
 
     participant_id = Column(Integer, ForeignKey("fire_participants.id"), nullable=False, index=True)
 
-    arrival_time = Column(DateTime, nullable=False)
+    arrival_time = Column(String, nullable=False)
 
     tech_type_id = Column(Integer, ForeignKey("tech_types.id"), nullable=True)
 

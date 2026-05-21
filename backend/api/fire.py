@@ -2,26 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 
-from db.session import SessionLocal
 from models.fire import Fire
 from models.fire_participant_events import FireParticipantEvent
 from models.fire_participants import FireParticipant
 from models.tech_type import TechType
+from models.user import User
 from schemas.fire_create import FireCreate, FireResponse
 from schemas.fire_update import FireUpdate
+from core.security import get_db, get_current_user
 
 router = APIRouter(prefix="/fires", tags=["fires"])
-
-
-# =========================
-# DB DEP
-# =========================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # =========================
@@ -59,12 +49,13 @@ def replace_events(db: Session, fire_id: int, participants):
 # CREATE
 # =========================
 @router.post("/", response_model=FireResponse, status_code=status.HTTP_201_CREATED)
-def create_fire(data: FireCreate, db: Session = Depends(get_db)):
+def create_fire(data: FireCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 
     participants = data.participants or []
     validate_participants(db, participants)
 
     fire_data = data.model_dump(exclude={"participants"})
+    fire_data["creator_id"] = current_user.id
 
     fire = Fire(
         **fire_data,
@@ -81,8 +72,8 @@ def create_fire(data: FireCreate, db: Session = Depends(get_db)):
 
     fire = db.query(Fire).options(
         joinedload(Fire.participant_events),
-        joinedload(Fire.dispatcher),
-        joinedload(Fire.inspector),
+        joinedload(Fire.creator),
+        joinedload(Fire.reviewer),
     ).get(fire.id)
 
     return fire
@@ -94,12 +85,13 @@ def create_fire(data: FireCreate, db: Session = Depends(get_db)):
 @router.get("/", response_model=list[FireResponse])
 def get_fires(
     status: str | None = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Fire).options(
         joinedload(Fire.participant_events),
-        joinedload(Fire.dispatcher),
-        joinedload(Fire.inspector),
+        joinedload(Fire.creator),
+        joinedload(Fire.reviewer),
     )
 
     if status:
@@ -112,11 +104,11 @@ def get_fires(
 # GET ONE
 # =========================
 @router.get("/{fire_id}", response_model=FireResponse)
-def get_fire(fire_id: int, db: Session = Depends(get_db)):
+def get_fire(fire_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     fire = db.query(Fire).options(
         joinedload(Fire.participant_events),
-        joinedload(Fire.dispatcher),
-        joinedload(Fire.inspector),
+        joinedload(Fire.creator),
+        joinedload(Fire.reviewer),
     ).filter(Fire.id == fire_id).first()
 
     if not fire:
@@ -129,23 +121,25 @@ def get_fire(fire_id: int, db: Session = Depends(get_db)):
 # UPDATE
 # =========================
 @router.put("/{fire_id}", response_model=FireResponse)
-def update_fire(fire_id: int, data: FireUpdate, db: Session = Depends(get_db)):
+def update_fire(fire_id: int, data: FireUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     fire = db.get(Fire, fire_id)
 
     if not fire:
         raise HTTPException(404, "Fire not found")
 
-    if fire.status not in ["OPEN", "IN_REVIEW"]:
+    if fire.status == "COMPLETED":
         raise HTTPException(400, "Editing not allowed")
-
-    if fire.status == "OPEN":
-        fire.status = "IN_REVIEW"
 
     update_data = data.model_dump(exclude_unset=True)
     participants = update_data.pop("participants", None)
 
+    # Allow completing from IN_REVIEW
+    requested_status = update_data.pop("status", None)
+    if requested_status == "COMPLETED" and fire.status == "IN_REVIEW":
+        fire.status = "COMPLETED"
+
     # 🔒 защита системных полей
-    for field in ["id", "dispatcher_id", "status"]:
+    for field in ["id", "creator_id"]:
         update_data.pop(field, None)
 
     # обновление полей
@@ -154,15 +148,44 @@ def update_fire(fire_id: int, data: FireUpdate, db: Session = Depends(get_db)):
 
     # обновление событий
     if participants is not None:
-        validate_participants(db, participants)
-        replace_events(db, fire.id, participants)
+        from schemas.participant import FireParticipantEventIn as PSchema
+        participant_objs = [PSchema(**p) if isinstance(p, dict) else p for p in participants]
+        validate_participants(db, participant_objs)
+        replace_events(db, fire.id, participant_objs)
 
     db.commit()
 
     fire = db.query(Fire).options(
         joinedload(Fire.participant_events),
-        joinedload(Fire.dispatcher),
-        joinedload(Fire.inspector),
+        joinedload(Fire.creator),
+        joinedload(Fire.reviewer),
+    ).get(fire.id)
+
+    return fire
+
+
+# =========================
+# TAKE (инспектор берёт пожар в работу)
+# =========================
+@router.post("/{fire_id}/take", response_model=FireResponse)
+def take_fire(fire_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    fire = db.get(Fire, fire_id)
+
+    if not fire:
+        raise HTTPException(404, "Fire not found")
+
+    if fire.status != "OPEN":
+        raise HTTPException(400, "Fire is not open")
+
+    fire.status = "IN_REVIEW"
+    fire.reviewer_id = current_user.id
+
+    db.commit()
+
+    fire = db.query(Fire).options(
+        joinedload(Fire.participant_events),
+        joinedload(Fire.creator),
+        joinedload(Fire.reviewer),
     ).get(fire.id)
 
     return fire
@@ -172,7 +195,7 @@ def update_fire(fire_id: int, data: FireUpdate, db: Session = Depends(get_db)):
 # COMPLETE
 # =========================
 @router.post("/{fire_id}/complete", response_model=FireResponse)
-def complete_fire(fire_id: int, db: Session = Depends(get_db)):
+def complete_fire(fire_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     fire = db.get(Fire, fire_id)
 
     if not fire:
@@ -193,7 +216,7 @@ def complete_fire(fire_id: int, db: Session = Depends(get_db)):
 # DELETE
 # =========================
 @router.delete("/{fire_id}", status_code=204)
-def delete_fire(fire_id: int, db: Session = Depends(get_db)):
+def delete_fire(fire_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     fire = db.get(Fire, fire_id)
 
     if not fire:

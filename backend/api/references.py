@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from db.session import SessionLocal
+from core.security import get_db
 
 from models.forestries import Forestry
 from models.land_types import LandType
@@ -9,17 +9,9 @@ from models.municipalities import Municipality
 from models.selsovets import Selsovet
 from models.fire_participants import FireParticipant
 from models.tech_type import TechType
-from models.reasons import Reason
+from models.reasons import Reason, ReasonGroup
 
 router = APIRouter(prefix="/references", tags=["references"])
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # =========================
@@ -31,11 +23,7 @@ REFERENCE_MAP = {
     "municipalities": Municipality,
     "fire-participants": FireParticipant,
     "tech-types": TechType,
-    "reasons": Reason,
 }
-
-
-
 
 
 # =========================
@@ -49,6 +37,27 @@ def get_selsovets(municipality_id: int | None = None, db: Session = Depends(get_
         query = query.filter(Selsovet.municipality_id == municipality_id)
 
     return query.order_by(Selsovet.name).all()
+
+
+# =========================
+# GET REASON GROUPS (краткие причины)
+# =========================
+@router.get("/reason-groups")
+def get_reason_groups(db: Session = Depends(get_db)):
+    return db.query(ReasonGroup).order_by(ReasonGroup.name).all()
+
+
+# =========================
+# GET REASONS BY GROUP (подпричины)
+# =========================
+@router.get("/reasons")
+def get_reasons(group_id: int | None = None, db: Session = Depends(get_db)):
+    query = db.query(Reason)
+
+    if group_id:
+        query = query.filter(Reason.group_id == group_id)
+
+    return query.order_by(Reason.name).all()
 
 
 # =========================
