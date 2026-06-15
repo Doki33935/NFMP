@@ -1,85 +1,258 @@
 # NFMP
-Natural fire monitoring program
 
-## Docker backups
+NFMP - веб-приложение для учета и мониторинга природных пожаров.
 
-Backups are stored in `backups/` and are ignored by git.
+Состав проекта:
 
-Automatic backups:
+- `backend` - FastAPI API, PostgreSQL, Alembic migrations.
+- `client-web` - React/Vite интерфейс.
+- `db` - PostgreSQL 16.
+- `db-backup` - автоматические резервные копии PostgreSQL.
+
+## Быстрый запуск
+
+Требования:
+
+- Docker
+- Docker Compose plugin
+- Git
+
+Клонировать проект:
+
+```powershell
+git clone https://github.com/Doki33935/NFMP.git
+cd NFMP
+git checkout dev
+```
+
+Создать `.env` из примера:
+
+```powershell
+copy .env.example .env
+```
+
+Минимальные значения по умолчанию:
+
+```env
+POSTGRES_USER=fire_user
+POSTGRES_PASSWORD=fire_pass
+POSTGRES_DB=fire_db
+POSTGRES_PORT=5432
+SECRET_KEY=change-me
+BACKUP_INTERVAL_SECONDS=2592000
+BACKUP_RETENTION_DAYS=14
+TZ=Asia/Yekaterinburg
+```
+
+На рабочем сервере замените `SECRET_KEY` на длинную случайную строку.
+
+Запуск:
+
+```powershell
+docker compose up -d --build
+```
+
+Проверка:
+
+```powershell
+docker compose ps
+docker compose logs --tail=100 backend
+```
+
+Адреса:
+
+- Frontend: `http://localhost:3000`
+- Backend Swagger: `http://localhost:8000/docs`
+- PostgreSQL: `localhost:5432`
+
+Первый пользователь на пустой базе:
+
+- логин: `111`
+- пароль: `111`
+- роль: `admin`
+
+## Структура Docker-сервисов
+
+```text
+db          PostgreSQL 16
+backend     FastAPI API, порт 8000
+client-web  React/Vite, порт 3000
+db-backup   периодические бекапы БД
+```
+
+Данные PostgreSQL хранятся в Docker volume `postgres_data`.
+
+Папка `backups/` примонтирована в backend и backup-контейнер. Сами `.dump` файлы игнорируются git, в репозитории хранится только `backups/.gitkeep`.
+
+## Миграции
+
+Backend при запуске применяет миграции автоматически:
+
+```text
+alembic upgrade head
+```
+
+Ручные команды:
+
+```powershell
+docker compose exec backend alembic current
+docker compose exec backend alembic history
+docker compose exec backend alembic upgrade head
+```
+
+## Бекапы
+
+Автоматический бекап выполняет сервис `db-backup`.
+
+По умолчанию:
+
+- период: `2592000` секунд, примерно 30 дней;
+- хранение старых дампов: `14` дней;
+- папка: `backups/`.
+
+Настройки задаются в `.env`:
+
+```env
+BACKUP_INTERVAL_SECONDS=2592000
+BACKUP_RETENTION_DAYS=14
+```
+
+Запустить backup-сервис:
 
 ```powershell
 docker compose up -d db-backup
 ```
 
-The `db-backup` service creates a PostgreSQL custom-format dump immediately on start and then repeats every 30 days by default. Old dumps older than 14 days are removed.
-
-Manual backup:
+Сделать бекап вручную на Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\backup-db.ps1
 ```
 
-Restore from backup:
+Восстановить конкретный бекап на Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\restore-db.ps1 -BackupFile backups\fire_db_YYYY-MM-DD_HH-mm-ss.dump
 ```
 
-Important: restore replaces database contents. Create a fresh backup before restoring.
+Важно: восстановление заменяет содержимое базы. Перед восстановлением сделайте свежий бекап.
 
-Admin reset from latest backup:
+## Reset к последнему бекапу
+
+В приложении оставлен один endpoint для отката БД:
 
 ```text
 POST /admin/reset
 ```
 
-This route requires an admin Bearer token and restores the newest `backups/fire_db_*.dump` file.
+Он требует Bearer token пользователя с ролью `admin` и восстанавливает самый свежий файл `backups/fire_db_*.dump`.
 
-контракт на таблицу fire
-1	№ п/п		должен проставляться автоматически (id пожара)
-2	Дата пожара	(вот тут, разброс максимум неделя от текущей даты, нужен ли нам целый календарь?) 
-3	Время сообщения		(сохраняй дату и время из системы в момент нажатия на сохранить КУЛП) 
-3.1.	Дата и время ликвидации последствий пожара		(тут наверное придется сделать календарь, заполняется ИНСПЕКТОРОМ) 										 
-3.2.	Время обслуживания вызова			автоматически считается от времени сообщения до даты и времени ликвидации 
-4	Адрес пожара		Нужна интеграция ФИАС, потом добавим сейчас затычка					 										 
-5	Комментарий к адресу				Поле предназначено для ручного ввода 		
+Пример:
 
-6	Муниципальное образование				Выбор значения должен производиться из выпадающего списка, данные из него будут браться в будущем из справочной таблицы			 					 
-7	Сельсовет (поссовет)				тоже из выпадающего списка, в соответствии с МО (6)
-8	Координаты				Поле должно быть недоступно для ручного редактирования. Значение должно автоматически проставляться из поля 9.	(просто отображать)				 
+```powershell
+curl -X POST http://localhost:8000/admin/reset -H "Authorization: Bearer ADMIN_TOKEN"
+```
 
-9	Место возникновения пожара на карте, позже интегрируем, данные с карты в формате Широта/Долгота (пример: "55.860503, 37.119083", на первом месте всегда идёт широта). Координаты должны автоматически проставляться в поле 8, в том числе, после изменения точки координат на карте. 	(пока делаем затычку)				 
+## Полезные команды
 
+Запустить сервисы:
 
-10	Состав земель				Выбор значения должен производиться из выпадающего списка, из справочной таблицы, пока затычка				 
+```powershell
+docker compose up -d
+```
 
-11	Вид пожара				Выбор значения должен быть из двух вариантов "Сухая трава", "Лес"					
+Остановить сервисы:
 
+```powershell
+docker compose down
+```
 
-11.1.	Наименование лесничества				Данное поле должно становиться активным только в том случае, если в поле 11 выбрано значение "Лес".
-Выбор значения должен производиться (при активации поля) из выпадающего списка, из справочной таблицы, пока затычка)					 
+Перезапустить все:
 
+```powershell
+docker compose restart
+```
 
-12	Пожар произошел в территории полос отвода (железнодорожных путей, автомобильных дорог, линии электропередачи)?				Выбор значения должен быть из двух вариантов "Да", "Нет"					
+Перезапустить только backend:
 
+```powershell
+docker compose restart backend
+```
 
+Пересобрать без удаления данных БД:
 
-12.1.	Вид полосы отвода				"Данное поле должно становиться активным только в том случае, если в поле 12 выбрано значение ""Да"".
-Выбор значения должен производиться (при активации поля) из выпадающего списка, вызываемого по клику на поле (из справочника лист ""Вид полосы отвода"", столбец ""А"")"					
+```powershell
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
 
+Смотреть логи:
 
+```powershell
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f client-web
+docker compose logs -f db
+docker compose logs -f db-backup
+```
 
-12.2.	Правообладатель  участка, на котором произошел пожар				"Данное поле должно становиться активным только в том случае, если в поле 12 выбрано значение ""Да"".
-Поле предназначено для ручного ввода ИНСПЕКТОРОМ		 
+Последние строки логов backend:
 
-13	Откуда поступила информация о пожаре				Поле должно быть доступно для ручного заполнения					
+```powershell
+docker compose logs --tail=200 backend
+```
 
-14	Площадь пожара, га				Поле должно быть доступно для ручного заполнения (вводятся только цифры)					 	 
-15	ФИО диспетчера, внёсшего первичную информацию		Ставится автоматически из данных пользователя, сохраняющего КУЛП 
+Зайти в PostgreSQL:
 
-16	№ карточки учёта пожара из модуля учёта пожара ААС КНД				Поле должно быть доступно для ручного заполнения	ЭТО НЕ ID пусть сам заполняет (диспетчер\инспектор) 
+```powershell
+docker compose exec db psql -U fire_user -d fire_db
+```
 
-17	ФИО дознавателя, внёсшего итоговые сведения		Это уже в edit когда ИНСПЕКТОР сохраняет изменения, закрывая КУЛП автоматически ставится его ФИО из данных пользователя
+Проверить пользователей и пожары:
 
+```powershell
+docker compose exec db psql -U fire_user -d fire_db -c "select id, username, role, full_name from users order by id;"
+docker compose exec db psql -U fire_user -d fire_db -c "select count(*) as fires from fires;"
+```
 
-18	Дополнительная информация по пожару				Поле должно быть доступно для ручного заполнения
+## Проверки перед commit/push
+
+Backend:
+
+```powershell
+docker compose exec -T backend python -m compileall api core db models schemas main.py
+```
+
+Frontend:
+
+```powershell
+docker compose exec -T client-web npm run build
+```
+
+Git whitespace check:
+
+```powershell
+git diff --check
+```
+
+## Обновление на сервере
+
+```powershell
+cd NFMP
+git pull origin dev
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 backend
+```
+
+## Что не хранится в git
+
+Не коммитятся:
+
+- `.env`
+- `backups/*.dump`
+- `node_modules`
+- Python cache/build артефакты
+
+Для передачи чистой стартовой БД используйте свежий `.dump` в `backups/` на сервере. Endpoint `/admin/reset` всегда берет самый новый dump из этой папки.
