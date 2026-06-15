@@ -30,7 +30,7 @@ class Fire(Base):
     address = Column(String, nullable=False)
     address_comment = Column(String, nullable=True)
 
-    municipality_id = Column(Integer, ForeignKey("municipalities.id"), nullable=False, index=True)
+    municipality_id = Column(Integer, ForeignKey("municipalities.id"), nullable=True, index=True)
     selsovet_id = Column(Integer, ForeignKey("selsovets.id"), nullable=True, index=True)
 
     latitude = Column(Float, nullable=True)

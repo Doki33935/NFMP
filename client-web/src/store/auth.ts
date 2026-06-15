@@ -19,12 +19,20 @@ function parseUserFromToken(token: string | null): User | null {
   if (!token) return null
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
-    // We store user info in sessionStorage as backup
-    const stored = sessionStorage.getItem('user')
-    if (stored) return JSON.parse(stored)
-    // Minimal fallback from token
     return { id: Number(payload.sub), username: '', role: payload.role, full_name: '' }
   } catch {
+    return null
+  }
+}
+
+function getStoredUser(): User | null {
+  const stored = sessionStorage.getItem('user')
+  if (!stored) return null
+
+  try {
+    return JSON.parse(stored)
+  } catch {
+    sessionStorage.removeItem('user')
     return null
   }
 }
@@ -38,8 +46,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => {
   const token = getCookie('token')
-  const storedUser = sessionStorage.getItem('user')
-  const user = storedUser ? JSON.parse(storedUser) : parseUserFromToken(token)
+  const user = getStoredUser() ?? parseUserFromToken(token)
 
   return {
     user,

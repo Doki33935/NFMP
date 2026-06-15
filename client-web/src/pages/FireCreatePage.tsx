@@ -7,13 +7,21 @@ import { DateStepWidget } from '@/components/fire/DateStepWidget'
 import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
 import type { FireParticipantEventIn } from '@/types/fire'
 
+function todayLocalDate(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function FireCreatePage() {
   const navigate = useNavigate()
   const refs = useReferences()
   const toast = useToastStore((s) => s.add)
 
   const [fireDate, setFireDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    todayLocalDate()
   )
   const [isForest, setIsForest] = useState(true)
   const [landTypeId, setLandTypeId] = useState<number | ''>('')
@@ -144,7 +152,7 @@ export function FireCreatePage() {
               </Field>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="Состав земли *">
+              <Field label="Состав земли">
                 <Select
                   value={landTypeId}
                   onChange={(v) => setLandTypeId(v ? Number(v) : '')}
@@ -221,7 +229,7 @@ export function FireCreatePage() {
             title="Дополнительно"
           >
             {isForest && (
-              <Field label="Лесничество *">
+              <Field label="Лесничество">
                 <Select
                   value={forestryId || ''}
                   onChange={(v) => setForestryId(v ? Number(v) : null)}

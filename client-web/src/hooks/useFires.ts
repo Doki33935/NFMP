@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import api from '@/lib/api'
 import type { FireResponse, FireCreate, FireUpdate } from '@/types/fire'
 
+const takingRequests = new Map<string, Promise<FireResponse | null>>()
+
 export function useFireList(status?: string) {
   const [fires, setFires] = useState<FireResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -12,6 +14,8 @@ export function useFireList(status?: string) {
       const params = status ? { status } : {}
       const res = await api.get<FireResponse[]>('/fires/', { params })
       setFires(res.data)
+    } catch {
+      setFires([])
     } finally {
       setLoading(false)
     }
@@ -29,27 +33,48 @@ export function useFire(id: number | string) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     async function load() {
+      setLoading(true)
       try {
         const res = await api.get<FireResponse>(`/fires/${id}`)
         let fireData = res.data
 
-        // Если пожар OPEN — инспектор берёт его в работу
         if (fireData.status === 'OPEN') {
-          try {
-            const takeRes = await api.post<FireResponse>(`/fires/${id}/take`)
-            fireData = takeRes.data
-          } catch {
-            // Если не удалось взять — просто показываем как есть
+          const takeKey = `taking-fire-${id}`
+          let takeRequest = takingRequests.get(takeKey)
+
+          if (!takeRequest) {
+            takeRequest = api
+              .post<FireResponse>(`/fires/${id}/take`)
+              .then((r) => r.data)
+              .catch(async () => {
+                const fresh = await api.get<FireResponse>(`/fires/${id}`).catch(() => null)
+                return fresh?.data ?? null
+              })
+              .finally(() => {
+                takingRequests.delete(takeKey)
+              })
+            takingRequests.set(takeKey, takeRequest)
           }
+
+          fireData = (await takeRequest) ?? fireData
         }
 
-        setFire(fireData)
+        if (!cancelled) setFire(fireData)
+      } catch {
+        if (!cancelled) setFire(null)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
+
     load()
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   return { fire, loading }

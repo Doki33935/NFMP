@@ -13,19 +13,30 @@ import {
   isSameMonth,
   isSameDay,
   isAfter,
+  isValid,
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
 interface Props {
   value: string
   onChange: (v: string) => void
+  attention?: boolean
 }
 
-export function DateStepWidget({ value, onChange }: Props) {
+function parseDateValue(value: string): Date {
+  const parsed = value ? new Date(value + 'T00:00:00') : new Date()
+  if (isValid(parsed)) return parsed
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return today
+}
+
+export function DateStepWidget({ value, onChange, attention = false }: Props) {
   const [open, setOpen] = useState(false)
-  const [viewDate, setViewDate] = useState(() => new Date(value + 'T00:00:00'))
+  const [viewDate, setViewDate] = useState(() => parseDateValue(value))
   const ref = useRef<HTMLDivElement>(null)
-  const date = new Date(value + 'T00:00:00')
+  const date = parseDateValue(value)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -82,7 +93,9 @@ export function DateStepWidget({ value, onChange }: Props) {
         <button
           type="button"
           onClick={() => { setViewDate(date); setOpen(!open) }}
-          className="flex-1 min-w-[140px] h-8 rounded-md bg-background border border-border px-3 text-sm font-medium text-text hover:border-primary transition-colors cursor-pointer text-center"
+          className={`flex-1 min-w-[140px] h-8 rounded-md bg-background border px-3 text-sm font-medium text-text hover:border-primary transition-colors cursor-pointer text-center ${
+            attention ? 'border-warning ring-1 ring-warning/40 bg-warning/10' : 'border-border'
+          }`}
         >
           {format(date, 'd MMMM yyyy', { locale: ru })}
         </button>

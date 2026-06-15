@@ -26,3 +26,8 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         full_name=user.full_name,
         access_token=access_token,
     )
+
+
+@router.post("/logout")
+def logout():
+    return {"status": "ok"}

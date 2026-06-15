@@ -9,6 +9,19 @@ import { DateStepWidget } from '@/components/fire/DateStepWidget'
 import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
 import type { FireParticipantEventIn } from '@/types/fire'
 
+function normalizeTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const timeMatch = value.match(/(\d{2}):(\d{2})/)
+  return timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : value
+}
+
+function localDateString(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function FireEditPage() {
   const { id } = useParams<{ id: string }>()
   const user = useAuthStore((s) => s.user)!
@@ -36,6 +49,7 @@ export function FireEditPage() {
   const [externalCardNumber, setExternalCardNumber] = useState('')
   const [endDate, setEndDate] = useState('')
   const [endTime, setEndTime] = useState('12:00')
+  const [liquidationTouched, setLiquidationTouched] = useState(false)
   const [participants, setParticipants] = useState<FireParticipantEventIn[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -47,7 +61,7 @@ export function FireEditPage() {
     if (!fire) return
     setFireDate(fire.fire_date)
     setIsForest(fire.is_forest)
-    setLandTypeId(fire.land_type_id)
+    setLandTypeId(fire.land_type_id ?? '')
     setArea(fire.area != null ? String(fire.area) : '')
     setAddress(fire.address)
     setAddressComment(fire.address_comment || '')
@@ -56,10 +70,15 @@ export function FireEditPage() {
     setForestryId(fire.forestry_id || null)
     setReasonId(fire.reason_id || null)
     if (fire.reason_id) {
-      api.get('/references/reasons').then((r) => {
-        const reason = r.data.find((x: { id: number; group_id: number }) => x.id === fire.reason_id)
-        if (reason) setReasonGroupId(reason.group_id)
-      })
+      api
+        .get('/references/reasons')
+        .then((r) => {
+          const reason = r.data.find((x: { id: number; group_id: number | null }) => x.id === fire.reason_id)
+          setReasonGroupId(reason?.group_id ?? null)
+        })
+        .catch(() => setReasonGroupId(null))
+    } else {
+      setReasonGroupId(null)
     }
     setRightOfWay(fire.right_of_way || false)
     setRightOfWayType(fire.right_of_way_type || '')
@@ -69,16 +88,23 @@ export function FireEditPage() {
     setExternalCardNumber(fire.external_card_number || '')
     if (fire.end_time) {
       const d = new Date(fire.end_time)
-      setEndDate(d.toISOString().slice(0, 10))
-      setEndTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+      if (Number.isNaN(d.getTime())) {
+        setEndDate(localDateString())
+        setEndTime('12:00')
+      } else {
+        setEndDate(localDateString(d))
+        setEndTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+      }
     } else {
-      setEndDate(new Date().toISOString().slice(0, 10))
+      setEndDate(localDateString())
+      setEndTime('12:00')
     }
+    setLiquidationTouched(false)
     if (fire.participant_events) {
       setParticipants(
         fire.participant_events.map((pe) => ({
           participant_id: pe.participant_id,
-          arrival_time: pe.arrival_time,
+          arrival_time: normalizeTime(pe.arrival_time),
           tech_type_id: pe.tech_type_id || null,
           comment: pe.comment || '',
         }))
@@ -165,7 +191,7 @@ export function FireEditPage() {
     }
   }
 
-  if (fireLoading || refs.loading) {
+  if (fireLoading || refs.loading || (fire && !fireDate)) {
     return (
       <div className="p-6">
         <div className="max-w-4xl mx-auto space-y-4">
@@ -188,6 +214,16 @@ export function FireEditPage() {
   }
 
   const isCompleted = fire.status === 'COMPLETED'
+  const needsAttention = !isCompleted
+  const isLiquidationDefault = needsAttention && !fire.end_time && !liquidationTouched && endTime === '12:00'
+  const missingLandType = needsAttention && !landTypeId
+  const missingArea = needsAttention && !area
+  const missingForestry = needsAttention && isForest && !forestryId
+  const missingReasonGroup = needsAttention && !reasonGroupId
+  const missingReason = needsAttention && !reasonId
+  const missingOwner = needsAttention && !owner.trim()
+  const missingSource = needsAttention && !source.trim()
+  const missingExternalCard = needsAttention && !externalCardNumber.trim()
 
   return (
     <div className="p-4 md:p-6 animate-fade-in">
@@ -214,19 +250,19 @@ export function FireEditPage() {
               </Field>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="Состав земли">
-                <Select value={landTypeId} onChange={(v) => setLandTypeId(v ? Number(v) : '')} options={refs.landTypes} placeholder="Состав земли" />
+              <Field label="Состав земли" attention={missingLandType}>
+                <Select value={landTypeId} onChange={(v) => setLandTypeId(v ? Number(v) : '')} options={refs.landTypes} placeholder="Состав земли" attention={missingLandType} />
               </Field>
-              <Field label="Причина (краткая)">
-                <Select value={reasonGroupId || ''} onChange={(v) => { setReasonGroupId(v ? Number(v) : null); setReasonId(null) }} options={refs.reasonGroups} placeholder="Причина" />
+              <Field label="Причина (краткая)" attention={missingReasonGroup}>
+                <Select value={reasonGroupId || ''} onChange={(v) => { setReasonGroupId(v ? Number(v) : null); setReasonId(null) }} options={refs.reasonGroups} placeholder="Причина" attention={missingReasonGroup} />
               </Field>
-              <Field label="Площадь (га)">
-                <Input value={area} onChange={setArea} placeholder="0.5" />
+              <Field label="Площадь (га)" attention={missingArea}>
+                <Input value={area} onChange={setArea} placeholder="0.5" attention={missingArea} />
               </Field>
             </div>
             {reasons.length > 0 && (
-              <Field label="Подпричина">
-                <Select value={reasonId || ''} onChange={(v) => setReasonId(v ? Number(v) : null)} options={reasons} placeholder="Подпричина" />
+              <Field label="Подпричина" attention={missingReason}>
+                <Select value={reasonId || ''} onChange={(v) => setReasonId(v ? Number(v) : null)} options={reasons} placeholder="Подпричина" attention={missingReason} />
               </Field>
             )}
           </Section>
@@ -254,8 +290,8 @@ export function FireEditPage() {
           {/* Дополнительно */}
           <Section icon="M9 12h6M9 16h6M13 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-5-5zM13 4v5h5" title="Дополнительно">
             {isForest && (
-              <Field label="Лесничество">
-                <Select value={forestryId || ''} onChange={(v) => setForestryId(v ? Number(v) : null)} options={refs.forestries} placeholder="Лесничество" />
+              <Field label="Лесничество" attention={missingForestry}>
+                <Select value={forestryId || ''} onChange={(v) => setForestryId(v ? Number(v) : null)} options={refs.forestries} placeholder="Лесничество" attention={missingForestry} />
               </Field>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -275,18 +311,18 @@ export function FireEditPage() {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Собственник">
-                <Input value={owner} onChange={setOwner} placeholder="ФИО или организация" />
+              <Field label="Собственник" attention={missingOwner}>
+                <Input value={owner} onChange={setOwner} placeholder="ФИО или организация" attention={missingOwner} />
               </Field>
-              <Field label="Источник информации">
-                <Input value={source} onChange={setSource} placeholder="Откуда поступила информация" />
+              <Field label="Источник информации" attention={missingSource}>
+                <Input value={source} onChange={setSource} placeholder="Откуда поступила информация" attention={missingSource} />
               </Field>
             </div>
             <Field label="Примечание">
               <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={2} className="w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all resize-none" />
             </Field>
-            <Field label="Номер карточки ААС КНД">
-              <Input value={externalCardNumber} onChange={setExternalCardNumber} placeholder="Номер карточки" />
+            <Field label="Номер карточки ААС КНД" attention={missingExternalCard}>
+              <Input value={externalCardNumber} onChange={setExternalCardNumber} placeholder="Номер карточки" attention={missingExternalCard} />
             </Field>
           </Section>
 
@@ -295,13 +331,13 @@ export function FireEditPage() {
             <Section icon="M9 12l2 2 4-4M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" title="Ликвидация">
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
-                  <Field label="Дата ликвидации">
-                    <DateStepWidget value={endDate} onChange={setEndDate} />
+                  <Field label="Дата ликвидации" attention={isLiquidationDefault}>
+                    <DateStepWidget value={endDate} onChange={(v) => { setLiquidationTouched(true); setEndDate(v) }} attention={isLiquidationDefault} />
                   </Field>
                 </div>
                 <div className="w-28">
-                  <Field label="Время">
-                    <TimeInput value={endTime} onChange={setEndTime} />
+                  <Field label="Время" attention={isLiquidationDefault}>
+                    <TimeInput value={endTime} onChange={(v) => { setLiquidationTouched(true); setEndTime(v) }} attention={isLiquidationDefault} />
                   </Field>
                 </div>
               </div>
@@ -386,24 +422,30 @@ function Section({ icon, title, children }: { icon: string; title: string; child
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, attention = false }: { label: string; children: React.ReactNode; attention?: boolean }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-text-muted uppercase tracking-wide">{label}</label>
+    <div className={`space-y-1.5 rounded-lg transition-colors ${attention ? 'bg-warning/5' : ''}`}>
+      <label className={`text-xs font-medium uppercase tracking-wide ${attention ? 'text-warning' : 'text-text-muted'}`}>
+        {label}
+      </label>
       {children}
     </div>
   )
 }
 
-function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+function attentionClasses(attention: boolean): string {
+  return attention ? 'border-warning bg-warning/10 ring-1 ring-warning/40' : 'border-border bg-background'
+}
+
+function Input({ value, onChange, placeholder, attention = false }: { value: string; onChange: (v: string) => void; placeholder?: string; attention?: boolean }) {
   return (
-    <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all" />
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all ${attentionClasses(attention)}`} />
   )
 }
 
-function Select({ value, onChange, options, placeholder }: { value: number | string; onChange: (v: string) => void; options: { id: number; name: string }[]; placeholder?: string }) {
+function Select({ value, onChange, options, placeholder, attention = false }: { value: number | string; onChange: (v: string) => void; options: { id: number; name: string }[]; placeholder?: string; attention?: boolean }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={`w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none styled-select ${value === '' || value === 0 ? 'text-text-muted' : 'text-text'}`}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={`w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none styled-select ${attentionClasses(attention)} ${value === '' || value === 0 ? 'text-text-muted' : 'text-text'}`}>
       <option value="" disabled hidden>{placeholder || ''}</option>
       <option value=""></option>
       {options.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
@@ -429,7 +471,7 @@ function Info({ label, value }: { label: string; value: string }) {
   )
 }
 
-function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function TimeInput({ value, onChange, attention = false }: { value: string; onChange: (v: string) => void; attention?: boolean }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value.replace(/[^\d]/g, '').slice(0, 4)
     if (raw.length >= 3) {
@@ -455,6 +497,6 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
   }
 
   return (
-    <input type="text" inputMode="numeric" value={value} onChange={handleChange} onKeyDown={handleKeyDown} placeholder="00:00" className="w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all tabular-nums" />
+    <input type="text" inputMode="numeric" value={value} onChange={handleChange} onKeyDown={handleKeyDown} placeholder="00:00" className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all tabular-nums ${attentionClasses(attention)}`} />
   )
 }

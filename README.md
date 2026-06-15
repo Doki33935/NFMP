@@ -1,6 +1,40 @@
 # NFMP
 Natural fire monitoring program
 
+## Docker backups
+
+Backups are stored in `backups/` and are ignored by git.
+
+Automatic backups:
+
+```powershell
+docker compose up -d db-backup
+```
+
+The `db-backup` service creates a PostgreSQL custom-format dump immediately on start and then repeats every 30 days by default. Old dumps older than 14 days are removed.
+
+Manual backup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\backup-db.ps1
+```
+
+Restore from backup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\restore-db.ps1 -BackupFile backups\fire_db_YYYY-MM-DD_HH-mm-ss.dump
+```
+
+Important: restore replaces database contents. Create a fresh backup before restoring.
+
+Admin reset from latest backup:
+
+```text
+POST /admin/reset
+```
+
+This route requires an admin Bearer token and restores the newest `backups/fire_db_*.dump` file.
+
 контракт на таблицу fire
 1	№ п/п		должен проставляться автоматически (id пожара)
 2	Дата пожара	(вот тут, разброс максимум неделя от текущей даты, нужен ли нам целый календарь?) 

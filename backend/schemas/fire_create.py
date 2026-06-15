@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, date
 from schemas.participant import FireParticipantEventIn, FireParticipantEventOut
@@ -29,7 +29,7 @@ class FireCreate(BaseModel):
 
     external_card_number: Optional[str] = None
 
-    participants: Optional[list[FireParticipantEventIn]] = []
+    participants: list[FireParticipantEventIn] = Field(default_factory=list)
 
 
 class FireResponse(BaseModel):
@@ -40,7 +40,7 @@ class FireResponse(BaseModel):
     end_time: Optional[datetime] = None
 
     is_forest: bool
-    land_type_id: int
+    land_type_id: Optional[int] = None
 
     area: Optional[float] = None
 
@@ -69,7 +69,7 @@ class FireResponse(BaseModel):
 
     status: str
 
-    participant_events: list[FireParticipantEventOut] = []
+    participant_events: list[FireParticipantEventOut] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

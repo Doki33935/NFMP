@@ -17,7 +17,7 @@ export interface FireParticipantEventOut {
 export interface FireCreate {
   fire_date: string
   is_forest: boolean
-  land_type_id?: number | null | null
+  land_type_id?: number | null
   area?: number | null
   address: string
   address_comment?: string
@@ -66,7 +66,7 @@ export interface FireResponse {
   time_msg: string
   end_time?: string | null
   is_forest: boolean
-  land_type_id: number
+  land_type_id?: number | null
   area?: number | null
   address: string
   address_comment?: string

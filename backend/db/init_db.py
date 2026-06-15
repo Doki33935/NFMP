@@ -22,31 +22,18 @@ def init_db():
 # =========================
 def seed_admin():
     db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "111").first()
+        if admin:
+            admin.password = "111"
+            admin.full_name = "Admin"
+            admin.role = "admin"
+        else:
+            db.add(User(username="111", password="111", full_name="Admin", role="admin"))
 
-    admin = User(
-        username="111",
-        password="111",
-        full_name="Admin",
-        role="admin"
-    )
-
-    disp = User(
-        username="222",
-        password="222",
-        full_name="Иванов Иван Иванович",
-        role="dispatcher"
-    )
-
-    insp = User(
-        username="333",
-        password="333",
-        full_name="Петров Петр Петрович",
-        role="inspector"
-    )
-
-    db.add_all([admin, disp, insp])
-    db.commit()
-    db.close()
+        db.commit()
+    finally:
+        db.close()
 
 
 # =========================
@@ -1108,8 +1095,10 @@ def seed_reasons():
                 db.flush()
 
             for reason_name in reasons:
-                exists = db.query(Reason).filter(Reason.name == reason_name, Reason.group_id == group.id).first()
-                if not exists:
+                reason = db.query(Reason).filter(Reason.name == reason_name).first()
+                if reason:
+                    reason.group_id = group.id
+                else:
                     db.add(Reason(name=reason_name, group_id=group.id))
 
         db.commit()
