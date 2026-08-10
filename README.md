@@ -36,9 +36,9 @@ POSTGRES_PORT=5432
 SECRET_KEY=replace-with-a-random-secret-of-at-least-32-characters
 INITIAL_ADMIN_USERNAME=admin
 INITIAL_ADMIN_PASSWORD=replace-with-a-strong-initial-password
-BACKUP_INTERVAL_SECONDS=21600
-BACKUP_RETENTION_DAYS=30
-BACKUP_RETENTION_COUNT=120
+BACKUP_INTERVAL_SECONDS=86400
+BACKUP_RETENTION_DAYS=7
+BACKUP_RETENTION_COUNT=7
 BACKUP_ON_START=true
 TZ=Asia/Yekaterinburg
 ```
@@ -95,6 +95,79 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 В этом профиле наружу опубликованы только порты `80/443` Caddy. PostgreSQL и API доступны только во внутренней Docker-сети, Swagger отключён, а TLS-сертификат выпускается автоматически для корректно настроенного домена.
 
+### Развёртывание на сервере Ubuntu
+
+Поддерживаемый вариант: 64-битный Ubuntu 22.04 LTS или 24.04 LTS, минимум 2 CPU, 4 ГБ RAM и 20 ГБ свободного места. Установите Docker Engine и Compose plugin по [официальной инструкции Docker](https://docs.docker.com/engine/install/ubuntu/). Не используйте convenience script для production.
+
+До запуска:
+
+1. Создайте DNS-запись `A` домена на публичный IPv4 сервера. Если используется IPv6, также настройте корректную запись `AAAA`.
+2. Разрешите входящие TCP-порты `80` и `443`, а также UDP `443`. PostgreSQL `5432` и backend `8000` наружу открывать не нужно.
+3. Клонируйте ветку `dev` и подготовьте окружение:
+
+```bash
+git clone --branch dev --single-branch https://github.com/Doki33935/NFMP.git
+cd NFMP
+cp .env.example .env
+mkdir -p backups
+chmod 700 backups
+chmod 600 .env
+```
+
+4. Сгенерируйте отдельные секреты и внесите их в `.env`:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 24
+```
+
+Обязательные production-параметры:
+
+```env
+POSTGRES_USER=fire_user
+POSTGRES_PASSWORD=<уникальный пароль БД>
+POSTGRES_DB=fire_db
+SECRET_KEY=<случайная строка не короче 32 символов>
+INITIAL_ADMIN_USERNAME=admin
+INITIAL_ADMIN_PASSWORD=<уникальный пароль не короче 12 символов>
+ENVIRONMENT=production
+SITE_ADDRESS=fire.example.com
+CORS_ORIGINS=https://fire.example.com
+BACKUP_INTERVAL_SECONDS=86400
+BACKUP_RETENTION_DAYS=7
+BACKUP_RETENTION_COUNT=7
+BACKUP_ON_START=true
+TZ=Asia/Yekaterinburg
+```
+
+5. Запустите production-профиль:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml pull
+sudo docker compose -f docker-compose.prod.yml up -d --build
+sudo docker compose -f docker-compose.prod.yml ps
+sudo docker compose -f docker-compose.prod.yml logs --tail=100 db-restore backend caddy db-backup
+```
+
+После запуска откройте `https://<SITE_ADDRESS>` и войдите под начальным администратором. При корректном DNS Caddy автоматически получает и продлевает HTTPS-сертификат; для этого сервер должен быть доступен из интернета по портам `80/443`. Сразу смените временный пароль администратора через профиль.
+
+Проверка API из внутренней сети Compose:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml exec -T backend \
+  python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health').read().decode())"
+```
+
+Обновление приложения:
+
+```bash
+git pull --ff-only origin dev
+sudo docker compose -f docker-compose.prod.yml up -d --build
+sudo docker compose -f docker-compose.prod.yml ps
+```
+
+Перед обновлением убедитесь, что в `backups/` есть свежий проверенный dump. Никогда не выполняйте `docker compose down -v`: ключ `-v` удалит volume PostgreSQL.
+
 ## Данные и восстановление
 
 Данные PostgreSQL хранятся в Docker volume `postgres_data`.
@@ -117,10 +190,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## Автоматические бекапы
 
-`db-backup` делает резервную копию каждые 6 часов:
+`db-backup` делает резервную копию раз в 24 часа:
 
 ```env
-BACKUP_INTERVAL_SECONDS=21600
+BACKUP_INTERVAL_SECONDS=86400
 ```
 
 При старте backup-сервиса сразу создаётся свежая копия:
@@ -129,11 +202,11 @@ BACKUP_INTERVAL_SECONDS=21600
 BACKUP_ON_START=true
 ```
 
-Копии старше 30 дней удаляются; дополнительно хранится не более 120 последних файлов:
+Копии старше 7 дней удаляются; дополнительно хранится не более 7 последних файлов:
 
 ```env
-BACKUP_RETENTION_DAYS=30
-BACKUP_RETENTION_COUNT=120
+BACKUP_RETENTION_DAYS=7
+BACKUP_RETENTION_COUNT=7
 ```
 
 Каждый dump проверяется через `pg_restore --list` до публикации готового файла.

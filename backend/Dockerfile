@@ -14,7 +14,9 @@ RUN apt-get update && apt-get install -y \
 # зависимости Python
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN python -m pip install --no-cache-dir --upgrade pip==26.1.2 \
+    -i https://pypi.org/simple \
+    && python -m pip install --no-cache-dir -r requirements.txt \
     -i https://pypi.org/simple
 
 # копируем код
