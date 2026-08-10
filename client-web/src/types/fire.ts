@@ -16,11 +16,11 @@ export interface FireParticipantEventOut {
 
 export interface FireCreate {
   fire_date: string
+  time_msg: string
   is_forest: boolean
   land_type_id?: number | null
   area?: number | null
   address: string
-  address_comment?: string
   municipality_id?: number | null
   selsovet_id?: number | null
   latitude?: number | null
@@ -38,11 +38,11 @@ export interface FireCreate {
 
 export interface FireUpdate {
   fire_date?: string
+  time_msg?: string
   is_forest?: boolean
   land_type_id?: number | null
   area?: number | null
   address?: string
-  address_comment?: string
   municipality_id?: number | null
   selsovet_id?: number | null
   latitude?: number | null
@@ -54,7 +54,6 @@ export interface FireUpdate {
   owner?: string
   source?: string
   extra?: string
-  reviewer_id?: number | null
   end_time?: string | null
   external_card_number?: string
   participants?: FireParticipantEventIn[]
@@ -69,7 +68,6 @@ export interface FireResponse {
   land_type_id?: number | null
   area?: number | null
   address: string
-  address_comment?: string
   municipality_id?: number | null
   selsovet_id?: number | null
   latitude?: number | null

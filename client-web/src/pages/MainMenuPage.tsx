@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/auth'
 
 const ROLE_NAMES: Record<string, string> = {
   dispatcher: 'Диспетчер',
-  inspector: 'Инспектор',
+  inspector: 'Дознаватель',
   admin: 'Администратор',
   chief: 'Руководитель',
 }

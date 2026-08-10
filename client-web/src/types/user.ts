@@ -8,14 +8,22 @@ export interface LoginResponse {
   username: string
   role: string
   full_name: string
-  access_token: string
 }
 
 export interface UserCreate {
   username: string
   password: string
+  password_confirmation: string
   role: string
   full_name: string
+}
+
+export interface UserUpdate {
+  username?: string
+  password?: string
+  password_confirmation?: string
+  role?: string
+  full_name?: string
 }
 
 export type User = {
@@ -23,4 +31,5 @@ export type User = {
   username: string
   role: string
   full_name: string
+  is_active?: boolean
 }

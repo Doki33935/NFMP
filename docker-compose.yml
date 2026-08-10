@@ -13,6 +13,29 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  db-restore:
+    image: postgres:16
+    container_name: fire_db_restore
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_DIR: /backups
+      POSTGRES_HOST: db
+    command: sh /scripts/ensure-db-from-backup.sh
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/ensure-db-from-backup.sh:/scripts/ensure-db-from-backup.sh:ro
 
   backend:
     build:
@@ -21,12 +44,16 @@ services:
     container_name: fire_backend
     restart: always
     depends_on:
-      - db
+      db-restore:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: development
+      CORS_ORIGINS: http://localhost:3000
+    command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     volumes:
@@ -37,7 +64,8 @@ services:
     image: node:20-alpine
     container_name: fire_client_web
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    restart: always
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev"
     depends_on:
       - backend
     ports:
@@ -51,14 +79,18 @@ services:
     container_name: fire_db_backup
     restart: always
     depends_on:
-      - db
+      db-restore:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-2592000}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-120}
+      BACKUP_ON_START: ${BACKUP_ON_START:-true}
       BACKUP_DIR: /backups
+      POSTGRES_HOST: db
       TZ: ${TZ:-Asia/Yekaterinburg}
     command: sh /scripts/backup-loop.sh
     volumes:

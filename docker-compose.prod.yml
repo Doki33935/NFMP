@@ -1,0 +1,108 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db-restore:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: production
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  db-restore:
+    image: postgres:16
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      BACKUP_DIR: /backups
+    command: sh /scripts/ensure-db-from-backup.sh
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/ensure-db-from-backup.sh:/scripts/ensure-db-from-backup.sh:ro
+    networks: [internal]
+
+  web:
+    build: ./client-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [internal, edge]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [web]
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  db-backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      db-restore:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-120}
+      BACKUP_ON_START: ${BACKUP_ON_START:-true}
+      TZ: ${TZ:-Asia/Yekaterinburg}
+    command: sh /scripts/backup-loop.sh
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-loop.sh:/scripts/backup-loop.sh:ro
+    networks: [internal]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    internal: true
+  edge:

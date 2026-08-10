@@ -1,3 +1,5 @@
+import os
+
 import requests
 from models.login import LoginRequestDTO, LoginResponseDTO
 from models.fire_create import FireCreateDTO
@@ -6,7 +8,7 @@ from models.fire_update import FireUpdateDTO
 
 class ApiClient:
     def __init__(self):
-        self.base_url = "http://127.0.0.1:8000"
+        self.base_url = os.getenv("NFMP_API_URL", "http://127.0.0.1:8000").rstrip("/")
         self.timeout = 8
         self.session = requests.Session()
         self.session.trust_env = False
@@ -38,12 +40,13 @@ class ApiClient:
     # =========================
     # USERS (admin only)
     # =========================
-    def create_user(self, username, password, full_name, role):
+    def create_user(self, username, password, password_confirmation, full_name, role):
         response = self.session.post(
             f"{self.base_url}/users",
             json={
                 "username": username,
                 "password": password,
+                "password_confirmation": password_confirmation,
                 "full_name": full_name,
                 "role": role
             },
@@ -96,6 +99,15 @@ class ApiClient:
 
         self._check(response)
 
+        return FireResponseDTO.from_dict(response.json())
+
+    def take_fire(self, fire_id: int) -> FireResponseDTO:
+        response = self.session.post(
+            f"{self.base_url}/fires/{fire_id}/take",
+            timeout=self.timeout,
+        )
+
+        self._check(response)
         return FireResponseDTO.from_dict(response.json())
 
     # =========================

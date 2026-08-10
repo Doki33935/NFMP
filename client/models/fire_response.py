@@ -17,7 +17,6 @@ class FireResponseDTO:
     area: Optional[float]
 
     address: str
-    address_comment: Optional[str]
 
     municipality_id: Optional[int]
     selsovet_id: Optional[int]
@@ -35,16 +34,16 @@ class FireResponseDTO:
     source: Optional[str]
     extra: Optional[str]
 
-    dispatcher_id: int
-    dispatcher_name: Optional[str]
-    inspector_id: Optional[int]
-    inspector_name: Optional[str]
+    creator_id: int
+    creator_name: Optional[str]
+    reviewer_id: Optional[int]
+    reviewer_name: Optional[str]
 
     external_card_number: Optional[str]
 
     status: str
 
-    participants: List[FireParticipantEventOutDTO] = field(default_factory=list)
+    participant_events: List[FireParticipantEventOutDTO] = field(default_factory=list)
 
     @staticmethod
     def from_dict(data: dict):
@@ -57,7 +56,6 @@ class FireResponseDTO:
             land_type_id=data["land_type_id"],
             area=data.get("area"),
             address=data["address"],
-            address_comment=data.get("address_comment"),
             municipality_id=data.get("municipality_id"),
             selsovet_id=data.get("selsovet_id"),
             latitude=data.get("latitude"),
@@ -69,14 +67,14 @@ class FireResponseDTO:
             owner=data.get("owner"),
             source=data.get("source"),
             extra=data.get("extra"),
-            dispatcher_id=data["dispatcher_id"],
-            dispatcher_name=data.get("dispatcher_name"),
-            inspector_id=data.get("inspector_id"),
-            inspector_name=data.get("inspector_name"),
+            creator_id=data["creator_id"],
+            creator_name=data.get("creator_name"),
+            reviewer_id=data.get("reviewer_id"),
+            reviewer_name=data.get("reviewer_name"),
             external_card_number=data.get("external_card_number"),
             status=data["status"],
-            participants=[
+            participant_events=[
                 FireParticipantEventOutDTO.from_dict(p)
-                for p in data.get("participants", [])
+                for p in data.get("participant_events", [])
             ],
         )

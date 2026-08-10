@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, date
-from typing import Optional, List
+from typing import Optional
 
 
 @dataclass
@@ -14,7 +14,6 @@ class FireUpdateDTO:
     area: Optional[float] = None
 
     address: Optional[str] = None
-    address_comment: Optional[str] = None
 
     municipality_id: Optional[int] = None
     selsovet_id: Optional[int] = None
@@ -32,12 +31,7 @@ class FireUpdateDTO:
     source: Optional[str] = None
     extra: Optional[str] = None
 
-    inspector_id: Optional[int] = None
-
     external_card_number: Optional[str] = None
-
-    participants_ids: Optional[List[int]] = None
-    tech_types_ids: Optional[List[int]] = None
 
     def to_dict(self) -> dict:
         return {

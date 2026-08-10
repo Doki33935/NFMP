@@ -1,43 +1,12 @@
-from fastapi import APIRouter, HTTPException, Request
-from jose import JWTError, jwt
+import os
 
-from core.security import ALGORITHM, SECRET_KEY
+from fastapi import APIRouter, Depends, HTTPException
+
+from core.security import require_role
 from db.backup_restore import restore_latest_backup
-from db.session import SessionLocal
 from models.user import User
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-def require_admin_token(request: Request) -> User:
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    token = auth_header[7:]
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    db = SessionLocal()
-    try:
-        try:
-            user_id_int = int(user_id)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=401, detail="Invalid token")
-
-        user = db.query(User).filter(User.id == user_id_int).first()
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        if user.role != "admin":
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
-        return user
-    finally:
-        db.close()
 
 
 def restore_db_from_latest_backup():
@@ -55,6 +24,7 @@ def restore_db_from_latest_backup():
 
 
 @router.post("/reset")
-def reset_db(request: Request):
-    require_admin_token(request)
+def reset_db(_current_user: User = Depends(require_role("admin"))):
+    if os.getenv("ENABLE_REMOTE_RESTORE", "false").lower() != "true":
+        raise HTTPException(status_code=404, detail="Not found")
     return restore_db_from_latest_backup()

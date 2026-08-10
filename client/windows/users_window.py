@@ -27,17 +27,20 @@ class UsersWindow(QWidget):
 
         self.password = QLineEdit()
         self.password.setPlaceholderText("Пароль")
+        self.password.setEchoMode(QLineEdit.Password)
+
+        self.password_confirmation = QLineEdit()
+        self.password_confirmation.setPlaceholderText("Подтвердите пароль")
+        self.password_confirmation.setEchoMode(QLineEdit.Password)
 
         self.full_name = QLineEdit()
         self.full_name.setPlaceholderText("ФИО")
 
         self.role = SafeComboBox()
-        self.role.addItems([
-            "dispatcher",
-            "inspector",
-            "admin",
-            "chief"
-        ])
+        self.role.addItem("Диспетчер", "dispatcher")
+        self.role.addItem("Дознаватель", "inspector")
+        self.role.addItem("Администратор", "admin")
+        self.role.addItem("Руководитель", "chief")
 
         # Кнопки
         create_btn = QPushButton("Создать пользователя")
@@ -52,6 +55,7 @@ class UsersWindow(QWidget):
         # Добавление
         self.layout.addWidget(self.username)
         self.layout.addWidget(self.password)
+        self.layout.addWidget(self.password_confirmation)
         self.layout.addWidget(self.full_name)
         self.layout.addWidget(self.role)
         self.layout.addWidget(create_btn)
@@ -59,12 +63,21 @@ class UsersWindow(QWidget):
         self.layout.addWidget(self.result)
 
     def create_user(self):
+        if len(self.password.text()) < 12:
+            QMessageBox.warning(self, "Ошибка", "Пароль должен содержать не менее 12 символов")
+            return
+
+        if self.password.text() != self.password_confirmation.text():
+            QMessageBox.warning(self, "Ошибка", "Пароли не совпадают")
+            return
+
         try:
             self.api.create_user(
                 self.username.text(),
                 self.password.text(),
+                self.password_confirmation.text(),
                 self.full_name.text(),
-                self.role.currentText()
+                self.role.currentData()
             )
 
             # popup успеха

@@ -14,7 +14,7 @@ def quote_sql_literal(value: str) -> str:
 
 def get_latest_backup() -> Path | None:
     backups = sorted(
-        BACKUP_DIR.glob("fire_db_*.dump"),
+        (path for path in BACKUP_DIR.glob("fire_db_*.dump") if path.stat().st_size > 0),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -28,12 +28,14 @@ def restore_latest_backup() -> Path:
 
     db_name = os.getenv("POSTGRES_DB", "fire_db")
     db_user = os.getenv("POSTGRES_USER", "fire_user")
-    db_password = os.getenv("POSTGRES_PASSWORD", "fire_pass")
+    db_password = os.environ["POSTGRES_PASSWORD"]
     db_host = os.getenv("POSTGRES_HOST", "db")
     db_name_literal = quote_sql_literal(db_name)
 
     env = os.environ.copy()
     env["PGPASSWORD"] = db_password
+
+    subprocess.run(["pg_restore", "--list", str(backup)], env=env, check=True)
 
     engine.dispose()
 

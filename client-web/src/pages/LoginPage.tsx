@@ -16,8 +16,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       const res = await api.post<LoginResponse>('/login', { username, password })
-      const { access_token, ...user } = res.data
-      login(user, access_token)
+      login(res.data)
     } catch {
       setError('Неверный логин или пароль')
     } finally {

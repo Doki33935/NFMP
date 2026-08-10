@@ -22,7 +22,8 @@ export function useFireList(status?: string) {
   }, [status])
 
   useEffect(() => {
-    load()
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
   }, [load])
 
   return { fires, loading, reload: load }
@@ -70,9 +71,10 @@ export function useFire(id: number | string) {
       }
     }
 
-    load()
+    const timer = window.setTimeout(() => void load(), 0)
 
     return () => {
+      window.clearTimeout(timer)
       cancelled = true
     }
   }, [id])

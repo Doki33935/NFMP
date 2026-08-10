@@ -1,10 +1,20 @@
-from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String, Date
+from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String, Date, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from db.base import Base
 
 
 class Fire(Base):
     __tablename__ = "fires"
+    __table_args__ = (
+        CheckConstraint("status IN ('OPEN', 'IN_REVIEW', 'COMPLETED')", name="ck_fires_status"),
+        CheckConstraint("area IS NULL OR area >= 0", name="ck_fires_area_nonnegative"),
+        CheckConstraint(
+            "(latitude IS NULL AND longitude IS NULL) OR "
+            "(latitude BETWEEN 50.45 AND 54.40 AND longitude BETWEEN 50.70 AND 61.75)",
+            name="ck_fires_orenburg_coordinates",
+        ),
+        UniqueConstraint("external_card_number", name="uq_fires_external_card_number"),
+    )
 
     # =========================
     # 🔥 PRIMARY
@@ -28,7 +38,6 @@ class Fire(Base):
     # 📍 LOCATION
     # =========================
     address = Column(String, nullable=False)
-    address_comment = Column(String, nullable=True)
 
     municipality_id = Column(Integer, ForeignKey("municipalities.id"), nullable=True, index=True)
     selsovet_id = Column(Integer, ForeignKey("selsovets.id"), nullable=True, index=True)
@@ -63,6 +72,7 @@ class Fire(Base):
     # 📊 STATUS
     # =========================
     status = Column(String, default="OPEN", nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     # =========================
     # 🔗 RELATIONS

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from core.security import get_db
+from db.reference_values import OWNER_TYPES, ZOUIT_TYPES
 
 from models.forestries import Forestry
 from models.land_types import LandType
@@ -58,6 +59,16 @@ def get_reasons(group_id: int | None = None, db: Session = Depends(get_db)):
         query = query.filter(Reason.group_id == group_id)
 
     return query.order_by(Reason.name).all()
+
+
+@router.get("/zouit-types")
+def get_zouit_types():
+    return [{"id": name, "name": name} for name in ZOUIT_TYPES]
+
+
+@router.get("/owners")
+def get_owners():
+    return [{"id": name, "name": name} for name in OWNER_TYPES]
 
 
 # =========================

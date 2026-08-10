@@ -132,21 +132,21 @@ class FireCreateWindow(QWidget):
         self.address = QLineEdit()
         self.address.setPlaceholderText("Адрес или ориентир")
 
-        self.comment = QLineEdit()
-        self.comment.setPlaceholderText("Комментарий к адресу")
-
         self.municipality = SafeComboBox()
         self.municipality.currentIndexChanged.connect(self.on_municipality_changed)
         self.settlement = SafeComboBox()
 
-        coords = QLabel("Координаты будут подключены отдельным модулем карты")
-        coords.setObjectName("muted")
+        self.latitude = QLineEdit()
+        self.latitude.setPlaceholderText("Например: 51.7682")
+
+        self.longitude = QLineEdit()
+        self.longitude.setPlaceholderText("Например: 55.0969")
 
         form.addRow("Адрес", self.address)
-        form.addRow("Комментарий", self.comment)
         form.addRow("МО", self.municipality)
         form.addRow("Сельсовет", self.settlement)
-        form.addRow("Координаты", coords)
+        form.addRow("Широта", self.latitude)
+        form.addRow("Долгота", self.longitude)
 
         frame.layout().addLayout(form)
         return frame
@@ -163,21 +163,20 @@ class FireCreateWindow(QWidget):
         self.right_of_way.currentIndexChanged.connect(self.on_right_of_way_changed)
 
         self.right_of_way_type = SafeComboBox()
-        self.owner = QLineEdit()
-        self.owner.setPlaceholderText("Правообладатель")
+        self.owner = SafeComboBox()
 
         self.source = QLineEdit()
-        self.source.setPlaceholderText("Источник сообщения")
+        self.source.setPlaceholderText("Необязательный комментарий о собственнике")
 
         self.extra = QPlainTextEdit()
         self.extra.setPlaceholderText("Дополнительные сведения")
         self.extra.setFixedHeight(92)
 
         form.addRow("Лесничество", self.forestry)
-        form.addRow("Полоса отвода", self.right_of_way)
-        form.addRow("Тип полосы", self.right_of_way_type)
-        form.addRow("Владелец", self.owner)
-        form.addRow("Источник", self.source)
+        form.addRow("Наличие ЗОУИТ", self.right_of_way)
+        form.addRow("Тип ЗОУИТ", self.right_of_way_type)
+        form.addRow("Собственник", self.owner)
+        form.addRow("Детальная информация о собственнике", self.source)
         form.addRow("Дополнительно", self.extra)
 
         frame.layout().addLayout(form)
@@ -221,6 +220,7 @@ class FireCreateWindow(QWidget):
         self.fill_combo(self.land_type, self.references.get("land_types", []))
         self.fill_combo(self.forestry, self.references.get("forestry", []))
         self.fill_combo(self.reason, self.references.get("reasons", []))
+        self.fill_combo(self.owner, self.references.get("owner_types", []))
 
     def fill_combo(self, combo, items):
         combo.clear()
@@ -230,11 +230,7 @@ class FireCreateWindow(QWidget):
             combo.addItem(item["name"], item["id"])
 
     def fill_right_of_way_types(self):
-        self.right_of_way_type.clear()
-        self.right_of_way_type.addItem("", None)
-        self.right_of_way_type.addItem("Полоса отвода железнодорожных путей", "railway")
-        self.right_of_way_type.addItem("Полоса отвода автомобильной дороги", "road")
-        self.right_of_way_type.addItem("Полоса отвода линии электропередачи", "powerline")
+        self.fill_combo(self.right_of_way_type, self.references.get("zouit_types", []))
 
     def add_participant_row(self):
         row_frame = QFrame()
@@ -297,13 +293,11 @@ class FireCreateWindow(QWidget):
     def on_right_of_way_changed(self, *args):
         enabled = self.right_of_way.currentData() is True
         self.right_of_way_type.setVisible(enabled)
-        self.owner.setVisible(enabled)
 
         if enabled:
             self.fill_right_of_way_types()
         else:
             self.right_of_way_type.clear()
-            self.owner.clear()
 
     def on_municipality_changed(self, *args):
         municipality_id = self.municipality.currentData()
@@ -351,7 +345,7 @@ class FireCreateWindow(QWidget):
             errors.append("Для лесного пожара выберите лесничество")
 
         if self.right_of_way.currentData() is True and self.right_of_way_type.currentData() is None:
-            errors.append("Для полосы отвода выберите тип полосы")
+            errors.append("Для территории ЗОУИТ выберите тип ЗОУИТ")
 
         if errors:
             raise ValueError("\n".join(errors))

@@ -11,6 +11,9 @@ from models.selsovets import Selsovet
 from models.fire_participants import FireParticipant
 from models.tech_type import TechType
 from models.reasons import Reason, ReasonGroup
+from db.reference_values import FORESTRY_NAMES
+from core.security import hash_password
+import os
 
 
 def init_db():
@@ -21,15 +24,26 @@ def init_db():
 # USERS SEED
 # =========================
 def seed_admin():
+    username = os.getenv("INITIAL_ADMIN_USERNAME", "").strip()
+    password = os.getenv("INITIAL_ADMIN_PASSWORD", "")
+    full_name = os.getenv("INITIAL_ADMIN_FULL_NAME", "Administrator").strip()
+    if not username or len(password) < 12:
+        raise RuntimeError(
+            "INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD (12+ characters) are required for an empty database"
+        )
+
     db = SessionLocal()
     try:
-        admin = db.query(User).filter(User.username == "111").first()
-        if admin:
-            admin.password = "111"
-            admin.full_name = "Admin"
-            admin.role = "admin"
-        else:
-            db.add(User(username="111", password="111", full_name="Admin", role="admin"))
+        admin = db.query(User).filter(User.username == username).first()
+        if not admin:
+            db.add(
+                User(
+                    username=username,
+                    password=hash_password(password),
+                    full_name=full_name,
+                    role="admin",
+                )
+            )
 
         db.commit()
     finally:
@@ -41,31 +55,42 @@ def seed_admin():
 # =========================
 def seed_forestry():
     db = SessionLocal()
+    try:
+        misspelled = db.query(Forestry).filter(
+            Forestry.name == "ГКУ «Шарлыкское лесничество »"
+        ).first()
+        corrected = db.query(Forestry).filter(
+            Forestry.name == "ГКУ «Шарлыкское лесничество»"
+        ).first()
+        if misspelled and corrected:
+            db.query(Fire).filter(Fire.forestry_id == misspelled.id).update(
+                {Fire.forestry_id: corrected.id},
+                synchronize_session=False,
+            )
+            db.delete(misspelled)
+        elif misspelled:
+            misspelled.name = "ГКУ «Шарлыкское лесничество»"
 
-    forestry_list = [
-        "ГКУ «Оренбургское лесничество»",
-        "ГКУ «Орское лесничество»",
-        "ГКУ «Первомайское лесничество»",
-        "ГКУ «Пономаревское лесничество»",
-        "ГКУ «Сакмарское лесничество»",
-        "ГКУ «Саракташское лесничество»",
-        "ГКУ «Северное лесничество»",
-        "ГКУ «Соль-Илецкое лесничество»",
-        "ГКУ «Сорочинское лесничество»",
-        "ГКУ «Ташлинское лесничество»",
-        "ГКУ «Тюльганское лесничество»",
-        "ГКУ «Чернореченское лесничество»",
-        "ГКУ «Шарлыкское лесничество »"
-    ]
+        existing_names = {item.name for item in db.query(Forestry).all()}
+        for name in FORESTRY_NAMES:
+            if name not in existing_names:
+                db.add(Forestry(name=name))
 
-    for name in forestry_list:
-        exists = db.query(Forestry).filter(Forestry.name == name).first()
+        db.commit()
+    finally:
+        db.close()
 
-        if not exists:
-            db.add(Forestry(name=name))
 
-    db.commit()
-    db.close()
+def hash_legacy_passwords():
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        for user in users:
+            if user.password and not user.password.startswith(("$2a$", "$2b$", "$2y$")):
+                user.password = hash_password(user.password)
+        db.commit()
+    finally:
+        db.close()
 
 
 # =========================

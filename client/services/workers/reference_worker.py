@@ -5,6 +5,8 @@ class ReferenceWorker:
     def load_all(self):
         return {
             "forestry": self.api.get_references("forestry"),
+            "zouit_types": self.api.get_references("zouit-types"),
+            "owner_types": self.api.get_references("owners"),
             "municipalities": self.api.get_references("municipalities"),
             "participants": self.api.get_references("fire-participants"),
             "tech_types": self.api.get_references("tech-types"),

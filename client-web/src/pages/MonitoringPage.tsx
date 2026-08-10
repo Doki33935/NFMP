@@ -19,51 +19,62 @@ import { ru } from 'date-fns/locale'
 import api from '@/lib/api'
 import { useFireList } from '@/hooks/useFires'
 import { useReferences } from '@/hooks/useReferences'
+import { SearchableMultiSelect } from '@/components/shared/SearchableMultiSelect'
+import { MonitoringMap } from '@/components/map/MonitoringMap'
 import type { FireResponse } from '@/types/fire'
 import type { Reason, Selsovet } from '@/types/references'
 
 type Filters = {
   dateFrom: string
   dateTo: string
-  status: string
-  fireType: string
-  municipalityId: string
-  selsovetId: string
-  landTypeId: string
-  forestryId: string
-  reasonGroupId: string
-  reasonId: string
-  participantId: string
-  techTypeId: string
-  rightOfWay: string
-  completeness: string
-  areaRange: string
+  statuses: string[]
+  fireTypes: string[]
+  municipalityIds: string[]
+  selsovetIds: string[]
+  landTypeIds: string[]
+  forestryIds: string[]
+  reasonGroupIds: string[]
+  reasonIds: string[]
+  participantIds: string[]
+  techTypeIds: string[]
+  rightOfWayValues: string[]
+  zouitTypes: string[]
+  ownerTypes: string[]
+  completenessValues: string[]
+  areaRanges: string[]
   query: string
 }
+
+type MultiFilterKey = Exclude<keyof Filters, 'dateFrom' | 'dateTo' | 'query'>
 
 const EMPTY_FILTERS: Filters = {
   dateFrom: '',
   dateTo: '',
-  status: '',
-  fireType: '',
-  municipalityId: '',
-  selsovetId: '',
-  landTypeId: '',
-  forestryId: '',
-  reasonGroupId: '',
-  reasonId: '',
-  participantId: '',
-  techTypeId: '',
-  rightOfWay: '',
-  completeness: '',
-  areaRange: '',
+  statuses: [],
+  fireTypes: [],
+  municipalityIds: [],
+  selsovetIds: [],
+  landTypeIds: [],
+  forestryIds: [],
+  reasonGroupIds: [],
+  reasonIds: [],
+  participantIds: [],
+  techTypeIds: [],
+  rightOfWayValues: [],
+  zouitTypes: [],
+  ownerTypes: [],
+  completenessValues: [],
+  areaRanges: [],
   query: '',
 }
 
 const AREA_RANGES = [
-  { id: '0-50', name: '0-50 га', from: 0, to: 50 },
+  { id: '0-10', name: '0-10 га', from: 0, to: 10 },
+  { id: '10-20', name: '10-20 га', from: 10, to: 20 },
+  { id: '20-50', name: '20-50 га', from: 20, to: 50 },
   { id: '50-100', name: '50-100 га', from: 50, to: 100 },
-  { id: '100-500', name: '100-500 га', from: 100, to: 500 },
+  { id: '100-200', name: '100-200 га', from: 100, to: 200 },
+  { id: '200-500', name: '200-500 га', from: 200, to: 500 },
   { id: '500+', name: '500+ га', from: 500, to: null },
 ]
 
@@ -78,7 +89,6 @@ const COMPLETENESS_OPTIONS = [
   { id: 'missing_reason', name: 'Не указана причина' },
   { id: 'missing_area', name: 'Не указана площадь' },
   { id: 'missing_owner', name: 'Не указан собственник' },
-  { id: 'missing_source', name: 'Не указан источник' },
   { id: 'missing_card', name: 'Нет номера карточки ААС КНД' },
   { id: 'missing_end_time', name: 'Нет даты ликвидации' },
   { id: 'has_participants', name: 'Есть участники тушения' },
@@ -121,49 +131,51 @@ export function MonitoringPage() {
   }, [reasons])
 
   const visibleSelsovets = useMemo(() => {
-    if (!filters.municipalityId) return selsovets
-    return selsovets.filter((item) => item.municipality_id === Number(filters.municipalityId))
-  }, [filters.municipalityId, selsovets])
+    if (filters.municipalityIds.length === 0) return selsovets
+    const selected = new Set(filters.municipalityIds.map(Number))
+    return selsovets.filter((item) => selected.has(item.municipality_id))
+  }, [filters.municipalityIds, selsovets])
 
   const visibleReasons = useMemo(() => {
-    if (!filters.reasonGroupId) return reasons
-    return reasons.filter((item) => item.group_id === Number(filters.reasonGroupId))
-  }, [filters.reasonGroupId, reasons])
+    if (filters.reasonGroupIds.length === 0) return reasons
+    const selected = new Set(filters.reasonGroupIds.map(Number))
+    return reasons.filter((item) => selected.has(item.group_id))
+  }, [filters.reasonGroupIds, reasons])
+
+  const ownerFilterOptions = useMemo(
+    () => mergeTextOptions(refs.ownerTypes, fires.map((fire) => fire.owner)),
+    [fires, refs.ownerTypes]
+  )
+  const zouitFilterOptions = useMemo(
+    () => mergeTextOptions(refs.zouitTypes, fires.map((fire) => fire.right_of_way_type)),
+    [fires, refs.zouitTypes]
+  )
 
   const filteredFires = useMemo(() => {
     return fires.filter((fire) => {
       if (filters.dateFrom && fire.fire_date < filters.dateFrom) return false
       if (filters.dateTo && fire.fire_date > filters.dateTo) return false
-      if (filters.status && fire.status !== filters.status) return false
-      if (filters.fireType === 'forest' && !fire.is_forest) return false
-      if (filters.fireType === 'landscape' && fire.is_forest) return false
-      if (filters.municipalityId && fire.municipality_id !== Number(filters.municipalityId)) return false
-      if (filters.selsovetId && fire.selsovet_id !== Number(filters.selsovetId)) return false
-      if (filters.landTypeId && fire.land_type_id !== Number(filters.landTypeId)) return false
-      if (filters.forestryId && fire.forestry_id !== Number(filters.forestryId)) return false
-      if (filters.reasonId && fire.reason_id !== Number(filters.reasonId)) return false
-      if (filters.reasonGroupId && reasonGroupByReason.get(fire.reason_id || 0) !== Number(filters.reasonGroupId)) return false
-      if (filters.participantId && !fire.participant_events?.some((p) => p.participant_id === Number(filters.participantId))) return false
-      if (filters.techTypeId && !fire.participant_events?.some((p) => p.tech_type_id === Number(filters.techTypeId))) return false
-      if (filters.rightOfWay === 'yes' && !fire.right_of_way) return false
-      if (filters.rightOfWay === 'no' && fire.right_of_way) return false
-
-      if (filters.areaRange) {
-        const range = AREA_RANGES.find((item) => item.id === filters.areaRange)
-        if (!range || !hasArea(fire)) return false
-
-        const area = fire.area ?? 0
-        if (area < range.from) return false
-        if (range.to !== null && area > range.to) return false
-      }
-      if (filters.completeness && !matchesCompleteness(fire, filters.completeness)) return false
+      if (!matchesTextSelection(filters.statuses, fire.status)) return false
+      if (!matchesTextSelection(filters.fireTypes, fire.is_forest ? 'forest' : 'landscape')) return false
+      if (!matchesNumberSelection(filters.municipalityIds, fire.municipality_id)) return false
+      if (!matchesNumberSelection(filters.selsovetIds, fire.selsovet_id)) return false
+      if (!matchesNumberSelection(filters.landTypeIds, fire.land_type_id)) return false
+      if (!matchesNumberSelection(filters.forestryIds, fire.forestry_id)) return false
+      if (!matchesNumberSelection(filters.reasonIds, fire.reason_id)) return false
+      if (!matchesNumberSelection(filters.reasonGroupIds, reasonGroupByReason.get(fire.reason_id || 0))) return false
+      if (filters.participantIds.length > 0 && !fire.participant_events?.some((p) => filters.participantIds.includes(String(p.participant_id)))) return false
+      if (filters.techTypeIds.length > 0 && !fire.participant_events?.some((p) => p.tech_type_id != null && filters.techTypeIds.includes(String(p.tech_type_id)))) return false
+      if (!matchesTextSelection(filters.rightOfWayValues, fire.right_of_way ? 'yes' : 'no')) return false
+      if (!matchesTextSelection(filters.zouitTypes, fire.right_of_way_type || '')) return false
+      if (!matchesTextSelection(filters.ownerTypes, fire.owner || '')) return false
+      if (filters.areaRanges.length > 0 && !filters.areaRanges.some((rangeId) => matchesAreaRange(fire, rangeId))) return false
+      if (filters.completenessValues.length > 0 && !filters.completenessValues.some((mode) => matchesCompleteness(fire, mode))) return false
 
       if (filters.query.trim()) {
         const q = filters.query.trim().toLowerCase()
         const text = [
           fire.id,
           fire.address,
-          fire.address_comment,
           fire.owner,
           fire.source,
           fire.extra,
@@ -200,11 +212,30 @@ export function MonitoringPage() {
     [filteredFires]
   )
 
-  const setFilter = (key: keyof Filters, value: string) => {
+  const setFilter = (key: 'dateFrom' | 'dateTo' | 'query', value: string) => {
+    setFilters((current) => ({ ...current, [key]: value }))
+  }
+
+  const setMultiFilter = (key: MultiFilterKey, values: string[]) => {
     setFilters((current) => {
-      const next = { ...current, [key]: value }
-      if (key === 'municipalityId') next.selsovetId = ''
-      if (key === 'reasonGroupId') next.reasonId = ''
+      const next = { ...current, [key]: values }
+
+      if (key === 'municipalityIds' && values.length > 0) {
+        const municipalities = new Set(values.map(Number))
+        const allowedSelsovets = new Set(
+          selsovets.filter((item) => municipalities.has(item.municipality_id)).map((item) => String(item.id))
+        )
+        next.selsovetIds = current.selsovetIds.filter((id) => allowedSelsovets.has(id))
+      }
+
+      if (key === 'reasonGroupIds' && values.length > 0) {
+        const groups = new Set(values.map(Number))
+        const allowedReasons = new Set(
+          reasons.filter((item) => groups.has(item.group_id)).map((item) => String(item.id))
+        )
+        next.reasonIds = current.reasonIds.filter((id) => allowedReasons.has(id))
+      }
+
       return next
     })
   }
@@ -221,8 +252,8 @@ export function MonitoringPage() {
             <p className="text-sm text-text-muted mt-1">Сводка, фильтры и выгрузка по выбранному набору пожаров</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => exportExcel(filteredFires, dictionaries)} className="px-3 py-2 rounded-md bg-primary text-sm text-white hover:bg-primary-hover transition-colors cursor-pointer">
-              Выгрузить Excel
+            <button onClick={() => exportCsv(filteredFires, dictionaries)} className="px-3 py-2 rounded-md bg-primary text-sm text-white hover:bg-primary-hover transition-colors cursor-pointer">
+              Выгрузить CSV
             </button>
           </div>
         </div>
@@ -231,11 +262,12 @@ export function MonitoringPage() {
           <LoadingState />
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               <StatCard label="Всего" value={stats.total} />
               <StatCard label="Открытые" value={stats.open} tone="accent" />
               <StatCard label="На проверке" value={stats.review} tone="warning" />
               <StatCard label="Оформленные" value={stats.completed} tone="success" />
+              <StatCard label="С ЗОУИТ" value={stats.zouit} tone="accent" />
               <StatCard label="Площадь" value={formatNumber(stats.totalArea)} suffix=" га" />
             </div>
 
@@ -271,6 +303,7 @@ export function MonitoringPage() {
             <FilterPanel
               filters={filters}
               setFilter={setFilter}
+              setMultiFilter={setMultiFilter}
               resetFilters={resetFilters}
               municipalities={refs.municipalities}
               selsovets={visibleSelsovets}
@@ -280,6 +313,13 @@ export function MonitoringPage() {
               reasons={visibleReasons}
               participants={refs.participants}
               techTypes={refs.techTypes}
+              zouitTypes={zouitFilterOptions}
+              ownerTypes={ownerFilterOptions}
+            />
+
+            <MonitoringMap
+              fires={filteredFires}
+              onOpen={(id) => navigate(`/monitoring/fires/${id}`)}
             />
 
             <div className="bg-surface rounded-lg border border-border overflow-hidden">
@@ -292,7 +332,7 @@ export function MonitoringPage() {
                   Сбросить фильтры
                 </button>
               </div>
-              <FireTable fires={filteredFires} dictionaries={dictionaries} onOpen={(id) => navigate(`/fires/${id}`)} />
+              <FireTable fires={filteredFires} dictionaries={dictionaries} onOpen={(id) => navigate(`/monitoring/fires/${id}`)} />
             </div>
           </>
         )}
@@ -307,7 +347,6 @@ function matchesCompleteness(fire: FireResponse, mode: string): boolean {
     !hasArea(fire) ||
     !fire.reason_id ||
     !fire.owner ||
-    !fire.source ||
     !fire.external_card_number ||
     !fire.end_time ||
     (fire.is_forest && !fire.forestry_id)
@@ -319,7 +358,6 @@ function matchesCompleteness(fire: FireResponse, mode: string): boolean {
     missing_reason: !fire.reason_id,
     missing_area: !hasArea(fire),
     missing_owner: !fire.owner,
-    missing_source: !fire.source,
     missing_card: !fire.external_card_number,
     missing_end_time: !fire.end_time,
     has_participants: participantCount > 0,
@@ -327,6 +365,40 @@ function matchesCompleteness(fire: FireResponse, mode: string): boolean {
   }
 
   return checks[mode] ?? true
+}
+
+function matchesTextSelection(selected: string[], value: string): boolean {
+  return selected.length === 0 || selected.includes(value)
+}
+
+function matchesNumberSelection(selected: string[], value: number | null | undefined): boolean {
+  return selected.length === 0 || (value != null && selected.includes(String(value)))
+}
+
+function matchesAreaRange(fire: FireResponse, rangeId: string): boolean {
+  const range = AREA_RANGES.find((item) => item.id === rangeId)
+  if (!range || !hasArea(fire)) return false
+
+  const area = fire.area ?? 0
+  return area >= range.from && (range.to === null || area < range.to)
+}
+
+function mergeTextOptions(
+  referenceOptions: { id: number | string; name: string }[],
+  values: Array<string | null | undefined>
+) {
+  const result = referenceOptions.map((option) => ({ id: String(option.id), name: option.name }))
+  const known = new Set(result.map((option) => option.id))
+
+  values.forEach((value) => {
+    const normalized = value?.trim()
+    if (normalized && !known.has(normalized)) {
+      known.add(normalized)
+      result.push({ id: normalized, name: `${normalized} (старое значение)` })
+    }
+  })
+
+  return result
 }
 
 function buildStats(fires: FireResponse[]) {
@@ -339,11 +411,22 @@ function buildStats(fires: FireResponse[]) {
     open: fires.filter((f) => f.status === 'OPEN').length,
     review: fires.filter((f) => f.status === 'IN_REVIEW').length,
     completed: fires.filter((f) => f.status === 'COMPLETED').length,
+    zouit: fires.filter((f) => f.right_of_way).length,
     forest: fires.filter((f) => f.is_forest).length,
     landscape: fires.filter((f) => !f.is_forest).length,
     totalArea,
     completenessPct: total > 0 ? Math.round((completedFields / total) * 100) : 0,
   }
+}
+
+function serviceDurationMinutes(fire: FireResponse): number | null {
+  if (!fire.time_msg || !fire.end_time) return null
+
+  const start = new Date(fire.time_msg).getTime()
+  const end = new Date(fire.end_time).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null
+
+  return Math.round((end - start) / 60000)
 }
 
 function hasArea(fire: FireResponse): boolean {
@@ -382,6 +465,7 @@ function topParticipants(fires: FireResponse[], names: Map<number, string>) {
 function FilterPanel({
   filters,
   setFilter,
+  setMultiFilter,
   resetFilters,
   municipalities,
   selsovets,
@@ -391,9 +475,12 @@ function FilterPanel({
   reasons,
   participants,
   techTypes,
+  zouitTypes,
+  ownerTypes,
 }: {
   filters: Filters
-  setFilter: (key: keyof Filters, value: string) => void
+  setFilter: (key: 'dateFrom' | 'dateTo' | 'query', value: string) => void
+  setMultiFilter: (key: MultiFilterKey, values: string[]) => void
   resetFilters: () => void
   municipalities: { id: number; name: string }[]
   selsovets: { id: number; name: string }[]
@@ -403,11 +490,21 @@ function FilterPanel({
   reasons: { id: number; name: string }[]
   participants: { id: number; name: string }[]
   techTypes: { id: number; name: string }[]
+  zouitTypes: { id: number | string; name: string }[]
+  ownerTypes: { id: number | string; name: string }[]
 }) {
+  const activeCount =
+    (filters.query.trim() ? 1 : 0) +
+    (filters.dateFrom || filters.dateTo ? 1 : 0) +
+    Object.entries(filters).filter(([, value]) => Array.isArray(value) && value.length > 0).length
+
   return (
     <div className="bg-surface rounded-lg border border-border p-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">Фильтры</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold">Фильтры</h2>
+          {activeCount > 0 && <span className="rounded bg-primary/15 px-2 py-0.5 text-xs font-medium text-accent">{activeCount}</span>}
+        </div>
         <button onClick={resetFilters} className="text-xs text-text-muted hover:text-primary transition-colors cursor-pointer">
           Сбросить
         </button>
@@ -426,13 +523,13 @@ function FilterPanel({
             }}
           />
         </div>
-        <Select label="Тип пожара" value={filters.fireType} onChange={(v) => setFilter('fireType', v)} options={[
+        <MultiSelect label="Тип пожара" values={filters.fireTypes} onChange={(v) => setMultiFilter('fireTypes', v)} options={[
           { id: 'forest', name: 'Лесной' },
           { id: 'landscape', name: 'Ландшафтный' },
         ]} />
-        <Select label="МО" value={filters.municipalityId} onChange={(v) => setFilter('municipalityId', v)} options={municipalities} />
-        <Select label="Причина" value={filters.reasonGroupId} onChange={(v) => setFilter('reasonGroupId', v)} options={reasonGroups} />
-        <Select label="Площадь" value={filters.areaRange} onChange={(v) => setFilter('areaRange', v)} options={AREA_RANGES} />
+        <MultiSelect label="МО" values={filters.municipalityIds} onChange={(v) => setMultiFilter('municipalityIds', v)} options={municipalities} />
+        <MultiSelect label="Причина" values={filters.reasonGroupIds} onChange={(v) => setMultiFilter('reasonGroupIds', v)} options={reasonGroups} />
+        <MultiSelect label="Площадь" values={filters.areaRanges} onChange={(v) => setMultiFilter('areaRanges', v)} options={AREA_RANGES} />
       </div>
 
       <details className="rounded-md bg-background/60 border border-border">
@@ -440,22 +537,24 @@ function FilterPanel({
           Дополнительные фильтры
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 p-3 border-t border-border">
-          <Select label="Статус" value={filters.status} onChange={(v) => setFilter('status', v)} options={[
+          <MultiSelect label="Статус" values={filters.statuses} onChange={(v) => setMultiFilter('statuses', v)} options={[
             { id: 'OPEN', name: 'Открыт' },
             { id: 'IN_REVIEW', name: 'На проверке' },
             { id: 'COMPLETED', name: 'Оформлен' },
           ]} />
-          <Select label="Сельсовет" value={filters.selsovetId} onChange={(v) => setFilter('selsovetId', v)} options={selsovets} />
-          <Select label="Состав земли" value={filters.landTypeId} onChange={(v) => setFilter('landTypeId', v)} options={landTypes} />
-          <Select label="Лесничество" value={filters.forestryId} onChange={(v) => setFilter('forestryId', v)} options={forestries} />
-          <Select label="Подпричина" value={filters.reasonId} onChange={(v) => setFilter('reasonId', v)} options={reasons} />
-          <Select label="Участник" value={filters.participantId} onChange={(v) => setFilter('participantId', v)} options={participants} />
-          <Select label="Техника" value={filters.techTypeId} onChange={(v) => setFilter('techTypeId', v)} options={techTypes} />
-          <Select label="Полоса отвода" value={filters.rightOfWay} onChange={(v) => setFilter('rightOfWay', v)} options={[
+          <MultiSelect label="Сельсовет" values={filters.selsovetIds} onChange={(v) => setMultiFilter('selsovetIds', v)} options={selsovets} />
+          <MultiSelect label="Состав земли" values={filters.landTypeIds} onChange={(v) => setMultiFilter('landTypeIds', v)} options={landTypes} />
+          <MultiSelect label="Лесничество" values={filters.forestryIds} onChange={(v) => setMultiFilter('forestryIds', v)} options={forestries} />
+          <MultiSelect label="Подпричина" values={filters.reasonIds} onChange={(v) => setMultiFilter('reasonIds', v)} options={reasons} />
+          <MultiSelect label="Участник" values={filters.participantIds} onChange={(v) => setMultiFilter('participantIds', v)} options={participants} />
+          <MultiSelect label="Техника" values={filters.techTypeIds} onChange={(v) => setMultiFilter('techTypeIds', v)} options={techTypes} />
+          <MultiSelect label="Наличие ЗОУИТ" values={filters.rightOfWayValues} onChange={(v) => setMultiFilter('rightOfWayValues', v)} options={[
             { id: 'yes', name: 'Да' },
             { id: 'no', name: 'Нет' },
           ]} />
-          <Select label="Заполненность" value={filters.completeness} onChange={(v) => setFilter('completeness', v)} options={COMPLETENESS_OPTIONS} />
+          <MultiSelect label="Тип ЗОУИТ" values={filters.zouitTypes} onChange={(v) => setMultiFilter('zouitTypes', v)} options={zouitTypes} />
+          <MultiSelect label="Собственник" values={filters.ownerTypes} onChange={(v) => setMultiFilter('ownerTypes', v)} options={ownerTypes} />
+          <MultiSelect label="Заполненность" values={filters.completenessValues} onChange={(v) => setMultiFilter('completenessValues', v)} options={COMPLETENESS_OPTIONS} />
         </div>
       </details>
     </div>
@@ -595,6 +694,13 @@ function DateRangePicker({
 }
 
 function FireTable({ fires, dictionaries, onOpen }: { fires: FireResponse[]; dictionaries: DictionaryMaps; onOpen: (id: number) => void }) {
+  const [page, setPage] = useState(1)
+  const pageSize = 100
+  const totalPages = Math.max(1, Math.ceil(fires.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const firstRow = (currentPage - 1) * pageSize
+  const pageFires = fires.slice(firstRow, firstRow + pageSize)
+
   if (fires.length === 0) {
     return (
       <div className="p-10 text-center">
@@ -605,16 +711,16 @@ function FireTable({ fires, dictionaries, onOpen }: { fires: FireResponse[]; dic
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1180px] text-sm">
+      <table className="w-full min-w-[1540px] text-sm">
         <thead className="bg-background text-text-muted">
           <tr>
-            {['ID', 'Дата', 'Статус', 'Тип', 'Адрес', 'МО', 'Причина', 'Площадь', 'Участники', 'Ликвидация'].map((head) => (
+            {['ID', 'Дата', 'Статус', 'Тип', 'Адрес', 'МО', 'Причина', 'Площадь', 'Собственник', 'Тип ЗОУИТ', 'Участники', 'Ликвидация', 'Обслуживание'].map((head) => (
               <th key={head} className="px-3 py-3 text-left font-medium">{head}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {fires.map((fire) => (
+          {pageFires.map((fire) => (
             <tr key={fire.id} onClick={() => onOpen(fire.id)} className="border-t border-border hover:bg-surface-hover cursor-pointer transition-colors">
               <td className="px-3 py-3 font-mono text-text-muted">#{fire.id}</td>
               <td className="px-3 py-3 whitespace-nowrap">{formatDate(fire.fire_date)}</td>
@@ -624,12 +730,47 @@ function FireTable({ fires, dictionaries, onOpen }: { fires: FireResponse[]; dic
               <td className="px-3 py-3 max-w-[220px] truncate">{dictionaries.municipalities.get(fire.municipality_id || 0) || '—'}</td>
               <td className="px-3 py-3 max-w-[260px] truncate">{dictionaries.reasons.get(fire.reason_id || 0) || '—'}</td>
               <td className="px-3 py-3 whitespace-nowrap">{hasArea(fire) ? `${fire.area} га` : '—'}</td>
+              <td className="px-3 py-3 max-w-[260px] truncate">{fire.owner || '—'}</td>
+              <td className="px-3 py-3 max-w-[300px] truncate">{fire.right_of_way_type || '—'}</td>
               <td className="px-3 py-3">{fire.participant_events?.length || 0}</td>
               <td className="px-3 py-3 whitespace-nowrap">{fire.end_time ? formatDateTime(fire.end_time) : '—'}</td>
+              <td className="px-3 py-3 whitespace-nowrap">{formatDuration(serviceDurationMinutes(fire))}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {totalPages > 1 && (
+        <div className="sticky left-0 flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
+          <span className="text-text-muted">
+            Строки {firstRow + 1}-{Math.min(firstRow + pageSize, fires.length)} из {fires.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              title="Предыдущая страница"
+              aria-label="Предыдущая страница"
+              className="grid h-8 w-8 place-items-center rounded-md bg-background text-lg text-text hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              ‹
+            </button>
+            <span className="min-w-24 text-center text-text-muted">
+              {currentPage} из {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              title="Следующая страница"
+              aria-label="Следующая страница"
+              className="grid h-8 w-8 place-items-center rounded-md bg-background text-lg text-text hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -651,20 +792,21 @@ const EXPORT_HEADERS = [
   'Статус',
   'Тип',
   'Адрес',
-  'Комментарий к адресу',
   'МО',
   'Сельсовет',
   'Лесничество',
   'Состав земли',
   'Причина',
   'Площадь, га',
-  'Полоса отвода',
-  'Тип полосы',
+  'Наличие ЗОУИТ',
+  'Тип ЗОУИТ',
   'Собственник',
-  'Источник',
+  'Детальная информация о собственнике',
   'Примечание',
   'Номер карточки ААС КНД',
+  'Время сообщения',
   'Дата ликвидации',
+  'Время обслуживания',
   'Создал',
   'Проверил',
   'Участники тушения',
@@ -680,34 +822,35 @@ function exportRows(fires: FireResponse[], dictionaries: DictionaryMaps): Export
     Статус: STATUS_LABELS[fire.status] || fire.status,
     Тип: fire.is_forest ? 'Лесной' : 'Ландшафтный',
     Адрес: fire.address || '',
-    'Комментарий к адресу': fire.address_comment || '',
     МО: dictionaries.municipalities.get(fire.municipality_id || 0) || '',
     Сельсовет: dictionaries.selsovets.get(fire.selsovet_id || 0) || '',
     Лесничество: dictionaries.forestries.get(fire.forestry_id || 0) || '',
     'Состав земли': dictionaries.landTypes.get(fire.land_type_id || 0) || '',
     Причина: dictionaries.reasons.get(fire.reason_id || 0) || '',
     'Площадь, га': fire.area ?? '',
-    'Полоса отвода': fire.right_of_way ? 'Да' : 'Нет',
-    'Тип полосы': fire.right_of_way_type || '',
+    'Наличие ЗОУИТ': fire.right_of_way ? 'Да' : 'Нет',
+    'Тип ЗОУИТ': fire.right_of_way_type || '',
     Собственник: fire.owner || '',
-    Источник: fire.source || '',
+    'Детальная информация о собственнике': fire.source || '',
     Примечание: fire.extra || '',
     'Номер карточки ААС КНД': fire.external_card_number || '',
+    'Время сообщения': fire.time_msg ? formatDateTime(fire.time_msg) : '',
     'Дата ликвидации': fire.end_time ? formatDateTime(fire.end_time) : '',
+    'Время обслуживания': formatDuration(serviceDurationMinutes(fire)),
     Создал: fire.creator_name || '',
     Проверил: fire.reviewer_name || '',
     'Участники тушения': participantNames(fire, dictionaries),
   }))
 }
 
-function exportExcel(fires: FireResponse[], dictionaries: DictionaryMaps) {
+function exportCsv(fires: FireResponse[], dictionaries: DictionaryMaps) {
   const rows = exportRows(fires, dictionaries)
-  const tableRows = rows
-    .map((row) => `<tr>${EXPORT_HEADERS.map((header) => `<td>${htmlCell(row[header])}</td>`).join('')}</tr>`)
-    .join('')
-  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${EXPORT_HEADERS.map((h) => `<th>${htmlCell(h)}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`
+  const csv = [
+    EXPORT_HEADERS.map(csvCell).join(';'),
+    ...rows.map((row) => EXPORT_HEADERS.map((header) => csvCell(row[header])).join(';')),
+  ].join('\r\n')
 
-  downloadBlob(`fires_${new Date().toISOString().slice(0, 10)}.xls`, new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' }))
+  downloadBlob(`fires_${new Date().toISOString().slice(0, 10)}.csv`, new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }))
 }
 
 function participantNames(fire: FireResponse, dictionaries: DictionaryMaps): string {
@@ -720,12 +863,10 @@ function participantNames(fire: FireResponse, dictionaries: DictionaryMaps): str
     .join(', ') || ''
 }
 
-function htmlCell(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+function csvCell(value: unknown): string {
+  let text = String(value ?? '')
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
 }
 
 function downloadBlob(filename: string, blob: Blob) {
@@ -816,16 +957,11 @@ function Input({ label, value, onChange, placeholder, type = 'text' }: { label: 
   )
 }
 
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { id: number | string; name: string }[] }) {
+function MultiSelect({ label, values, onChange, options }: { label: string; values: string[]; onChange: (values: string[]) => void; options: { id: number | string; name: string }[] }) {
   return (
     <label className="space-y-1.5 block">
       <span className="text-xs font-medium text-text-muted uppercase tracking-wide">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={`w-full rounded-md bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none styled-select ${value ? 'text-text' : 'text-text-muted'}`}>
-        <option value="">Все</option>
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>{option.name}</option>
-        ))}
-      </select>
+      <SearchableMultiSelect values={values} onChange={onChange} options={options} placeholder="Все" />
     </label>
   )
 }
@@ -859,6 +995,22 @@ function formatDateTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('ru-RU')
+}
+
+function formatDuration(minutes: number | null): string {
+  if (minutes === null) return '—'
+  if (minutes < 60) return `${minutes} мин`
+
+  const days = Math.floor(minutes / 1440)
+  const hours = Math.floor((minutes % 1440) / 60)
+  const restMinutes = minutes % 60
+  const parts: string[] = []
+
+  if (days > 0) parts.push(`${days} д`)
+  if (hours > 0) parts.push(`${hours} ч`)
+  if (restMinutes > 0 || parts.length === 0) parts.push(`${restMinutes} мин`)
+
+  return parts.join(' ')
 }
 
 function formatNumber(value: number): string {

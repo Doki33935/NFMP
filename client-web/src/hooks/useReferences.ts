@@ -5,6 +5,8 @@ import type {
   Selsovet,
   LandType,
   Forestry,
+  ZouitType,
+  OwnerType,
   FireParticipant,
   TechType,
   ReasonGroup,
@@ -15,6 +17,8 @@ interface References {
   municipalities: Municipality[]
   landTypes: LandType[]
   forestries: Forestry[]
+  zouitTypes: ZouitType[]
+  ownerTypes: OwnerType[]
   participants: FireParticipant[]
   techTypes: TechType[]
   reasonGroups: ReasonGroup[]
@@ -25,6 +29,8 @@ export function useReferences() {
     municipalities: [],
     landTypes: [],
     forestries: [],
+    zouitTypes: [],
+    ownerTypes: [],
     participants: [],
     techTypes: [],
     reasonGroups: [],
@@ -36,11 +42,13 @@ export function useReferences() {
 
     async function load() {
       try {
-        const [municipalities, landTypes, forestries, participants, techTypes, reasonGroups] =
+        const [municipalities, landTypes, forestries, zouitTypes, ownerTypes, participants, techTypes, reasonGroups] =
           await Promise.all([
             api.get<Municipality[]>('/references/municipalities'),
             api.get<LandType[]>('/references/land-types'),
             api.get<Forestry[]>('/references/forestry'),
+            api.get<ZouitType[]>('/references/zouit-types'),
+            api.get<OwnerType[]>('/references/owners'),
             api.get<FireParticipant[]>('/references/fire-participants'),
             api.get<TechType[]>('/references/tech-types'),
             api.get<ReasonGroup[]>('/references/reason-groups'),
@@ -51,6 +59,8 @@ export function useReferences() {
           municipalities: municipalities.data,
           landTypes: landTypes.data,
           forestries: forestries.data,
+          zouitTypes: zouitTypes.data,
+          ownerTypes: ownerTypes.data,
           participants: participants.data,
           techTypes: techTypes.data,
           reasonGroups: reasonGroups.data,
@@ -61,6 +71,8 @@ export function useReferences() {
             municipalities: [],
             landTypes: [],
             forestries: [],
+            zouitTypes: [],
+            ownerTypes: [],
             participants: [],
             techTypes: [],
             reasonGroups: [],
@@ -81,13 +93,12 @@ export function useReferences() {
 }
 
 export function useSelsovets(municipalityId: number | null) {
-  const [selsovets, setSelsovets] = useState<Selsovet[]>([])
+  const [result, setResult] = useState<{ key: number; items: Selsovet[] } | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     if (!municipalityId) {
-      setSelsovets([])
       return () => {
         cancelled = true
       }
@@ -98,10 +109,10 @@ export function useSelsovets(municipalityId: number | null) {
         params: { municipality_id: municipalityId },
       })
       .then((r) => {
-        if (!cancelled) setSelsovets(r.data)
+        if (!cancelled) setResult({ key: municipalityId, items: r.data })
       })
       .catch(() => {
-        if (!cancelled) setSelsovets([])
+        if (!cancelled) setResult({ key: municipalityId, items: [] })
       })
 
     return () => {
@@ -109,17 +120,16 @@ export function useSelsovets(municipalityId: number | null) {
     }
   }, [municipalityId])
 
-  return selsovets
+  return result?.key === municipalityId ? result.items : []
 }
 
 export function useReasons(groupId: number | null) {
-  const [reasons, setReasons] = useState<Reason[]>([])
+  const [result, setResult] = useState<{ key: number; items: Reason[] } | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     if (!groupId) {
-      setReasons([])
       return () => {
         cancelled = true
       }
@@ -130,10 +140,10 @@ export function useReasons(groupId: number | null) {
         params: { group_id: groupId },
       })
       .then((r) => {
-        if (!cancelled) setReasons(r.data)
+        if (!cancelled) setResult({ key: groupId, items: r.data })
       })
       .catch(() => {
-        if (!cancelled) setReasons([])
+        if (!cancelled) setResult({ key: groupId, items: [] })
       })
 
     return () => {
@@ -141,5 +151,5 @@ export function useReasons(groupId: number | null) {
     }
   }, [groupId])
 
-  return reasons
+  return result?.key === groupId ? result.items : []
 }

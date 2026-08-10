@@ -29,21 +29,22 @@ class FireCreateService:
 
         return FireCreateDTO(
             fire_date=fire_date,
+            time_msg=datetime.combine(fire_date, datetime.now().time().replace(microsecond=0)),
             is_forest=ui.is_forest.currentData() is True,
             land_type_id=ui.land_type.currentData(),
             area=area,
             address=ui.address.text(),
-            address_comment=ui.comment.text() or None,
             municipality_id=ui.municipality.currentData(),
             selsovet_id=ui.settlement.currentData(),
+            latitude=self._parse_coordinate(ui.latitude.text(), "Широта"),
+            longitude=self._parse_coordinate(ui.longitude.text(), "Долгота"),
             forestry_id=ui.forestry.currentData(),
             reason_id=ui.reason.currentData(),
             right_of_way=ui.right_of_way.currentData() is True,
             right_of_way_type=ui.right_of_way_type.currentData() or None,
-            owner=ui.owner.text() or None,
+            owner=ui.owner.currentData() or None,
             source=ui.source.text() or None,
             extra=ui.extra.toPlainText() or None,
-            dispatcher_id=self.user.id,
             participants=participants,
         )
 
@@ -75,3 +76,13 @@ class FireCreateService:
             raise ValueError("Площадь не может быть отрицательной")
 
         return area
+
+    def _parse_coordinate(self, value: str, label: str) -> float | None:
+        value = (value or "").strip().replace(",", ".")
+        if not value:
+            return None
+
+        try:
+            return float(value)
+        except ValueError as exc:
+            raise ValueError(f"{label} должна быть числом") from exc

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/auth'
 import { useReferences, useSelsovets, useReasons } from '@/hooks/useReferences'
 import { useFire, updateFire } from '@/hooks/useFires'
 import { useToastStore } from '@/store/toast'
+import { useAuthStore } from '@/store/auth'
 import api from '@/lib/api'
 import { DateStepWidget } from '@/components/fire/DateStepWidget'
 import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
+import { TimeInput } from '@/components/fire/TimeInput'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { FireLocationMap } from '@/components/map/FireLocationMap'
 import type { FireParticipantEventIn } from '@/types/fire'
 
 function normalizeTime(value: string | null | undefined): string {
@@ -22,20 +25,36 @@ function localDateString(date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
+function isCompleteTime(value: string): boolean {
+  return /^\d{2}:\d{2}$/.test(value)
+}
+
+function parseOptionalNumber(value: string): number | null {
+  const normalized = value.trim().replace(',', '.')
+  return normalized ? Number(normalized) : null
+}
+
+function hasInvalidOptionalNumber(value: string): boolean {
+  const normalized = value.trim().replace(',', '.')
+  return Boolean(normalized) && Number.isNaN(Number(normalized))
+}
+
 export function FireEditPage() {
+  const currentUser = useAuthStore((state) => state.user)
   const { id } = useParams<{ id: string }>()
-  const user = useAuthStore((s) => s.user)!
   const navigate = useNavigate()
   const { fire, loading: fireLoading } = useFire(id!)
   const refs = useReferences()
   const toast = useToastStore((s) => s.add)
 
   const [fireDate, setFireDate] = useState('')
+  const [fireTime, setFireTime] = useState('')
   const [isForest, setIsForest] = useState(true)
   const [landTypeId, setLandTypeId] = useState<number | ''>('')
   const [area, setArea] = useState('')
   const [address, setAddress] = useState('')
-  const [addressComment, setAddressComment] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [municipalityId, setMunicipalityId] = useState<number | null>(null)
   const [selsovetId, setSelsovetId] = useState<number | null>(null)
   const [forestryId, setForestryId] = useState<number | null>(null)
@@ -59,12 +78,16 @@ export function FireEditPage() {
 
   useEffect(() => {
     if (!fire) return
+    // The form is initialized once the requested record has loaded.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFireDate(fire.fire_date)
+    setFireTime(normalizeTime(fire.time_msg))
     setIsForest(fire.is_forest)
     setLandTypeId(fire.land_type_id ?? '')
     setArea(fire.area != null ? String(fire.area) : '')
     setAddress(fire.address)
-    setAddressComment(fire.address_comment || '')
+    setLatitude(fire.latitude != null ? String(fire.latitude) : '')
+    setLongitude(fire.longitude != null ? String(fire.longitude) : '')
     setMunicipalityId(fire.municipality_id || null)
     setSelsovetId(fire.selsovet_id || null)
     setForestryId(fire.forestry_id || null)
@@ -126,11 +149,13 @@ export function FireEditPage() {
 
   const buildPayload = () => ({
     fire_date: fireDate,
+    time_msg: `${fireDate}T${fireTime}:00`,
     is_forest: isForest,
     land_type_id: landTypeId ? Number(landTypeId) : null,
     area: area ? parseFloat(area.replace(',', '.')) : null,
     address: address.trim(),
-    address_comment: addressComment || undefined,
+    latitude: parseOptionalNumber(latitude),
+    longitude: parseOptionalNumber(longitude),
     municipality_id: municipalityId,
     selsovet_id: selsovetId,
     forestry_id: forestryId,
@@ -141,13 +166,27 @@ export function FireEditPage() {
     source: source || undefined,
     extra: extra || undefined,
     external_card_number: externalCardNumber || undefined,
-    reviewer_id: user.id,
     end_time: endDate ? `${endDate}T${endTime || '12:00'}:00` : undefined,
     participants: participants.filter((p) => p.participant_id > 0),
   })
 
   const handleSave = async () => {
     setError('')
+
+    if (!isCompleteTime(fireTime)) {
+      setError('Укажите время сообщения')
+      return
+    }
+
+    if (hasInvalidOptionalNumber(latitude) || hasInvalidOptionalNumber(longitude)) {
+      setError('Координаты должны быть числами')
+      return
+    }
+
+    if (rightOfWay && !rightOfWayType) {
+      setError('Выберите тип ЗОУИТ')
+      return
+    }
 
     // При оформлении — все поля обязательны
     if (fire!.status === 'IN_REVIEW') {
@@ -156,7 +195,6 @@ export function FireEditPage() {
       if (isForest && !forestryId) { setError('Для оформления укажите лесничество'); return }
       if (!reasonGroupId) { setError('Для оформления укажите причину пожара'); return }
       if (!reasonId) { setError('Для оформления укажите подпричину пожара'); return }
-      if (!source) { setError('Для оформления укажите источник информации'); return }
       if (!owner) { setError('Для оформления укажите собственника'); return }
       if (!externalCardNumber) { setError('Для оформления укажите номер карточки ААС КНД'); return }
     }
@@ -164,10 +202,10 @@ export function FireEditPage() {
     setSaving(true)
     try {
       const payload = buildPayload()
-      if (fire!.status === 'IN_REVIEW') {
-        (payload as Record<string, unknown>).status = 'COMPLETED'
-      }
       await updateFire(Number(id), payload)
+      if (fire!.status === 'IN_REVIEW') {
+        await api.post(`/fires/${id}/complete`)
+      }
       toast(fire!.status === 'IN_REVIEW' ? 'КУЛП оформлен' : 'Сохранено', 'success')
       navigate('/fires')
     } catch {
@@ -222,8 +260,10 @@ export function FireEditPage() {
   const missingReasonGroup = needsAttention && !reasonGroupId
   const missingReason = needsAttention && !reasonId
   const missingOwner = needsAttention && !owner.trim()
-  const missingSource = needsAttention && !source.trim()
   const missingExternalCard = needsAttention && !externalCardNumber.trim()
+  const ownerOptions = owner && !refs.ownerTypes.some((option) => option.id === owner)
+    ? [{ id: owner, name: `${owner} (старое значение)` }, ...refs.ownerTypes]
+    : refs.ownerTypes
 
   return (
     <div className="p-4 md:p-6 animate-fade-in">
@@ -238,9 +278,12 @@ export function FireEditPage() {
         <div className="space-y-5">
           {/* Событие */}
           <Section icon="M12 2c1 3 2.5 3.5 3.5 4.5A5 5 0 0 1 17 10a5 5 0 0 1-5 5 5 5 0 0 1-5-5c0-1.5.5-2 1-3 .5 1.5 1.5 2 2 2a2 2 0 0 0 2-2c0-1.5-1-2-1-4z" title="Событие">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field label="Дата пожара">
                 <DateStepWidget value={fireDate} onChange={setFireDate} />
+              </Field>
+              <Field label="Время сообщения">
+                <TimeInput value={fireTime} onChange={setFireTime} />
               </Field>
               <Field label="Тип пожара">
                 <div className="flex gap-2">
@@ -272,9 +315,14 @@ export function FireEditPage() {
             <Field label="Адрес">
               <Input value={address} onChange={setAddress} placeholder="Населённый пункт, ориентир..." />
             </Field>
-            <Field label="Комментарий к адресу">
-              <Input value={addressComment} onChange={setAddressComment} />
-            </Field>
+            <FireLocationMap
+              address={address}
+              latitude={latitude}
+              longitude={longitude}
+              onAddressChange={setAddress}
+              onLatitudeChange={setLatitude}
+              onLongitudeChange={setLongitude}
+            />
             <div className={`grid grid-cols-1 ${selsovets.length > 0 ? 'md:grid-cols-2' : ''} gap-4`}>
               <Field label="Муниципальное образование">
                 <Select value={municipalityId || ''} onChange={(v) => { setMunicipalityId(v ? Number(v) : null); setSelsovetId(null) }} options={refs.municipalities} placeholder="МО" />
@@ -295,7 +343,7 @@ export function FireEditPage() {
               </Field>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Полоса отвода">
+              <Field label="Наличие ЗОУИТ">
                 <div className="flex items-center gap-3 h-10">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" checked={rightOfWay} onChange={(e) => { setRightOfWay(e.target.checked); if (!e.target.checked) setRightOfWayType('') }} className="sr-only peer" />
@@ -305,17 +353,17 @@ export function FireEditPage() {
                 </div>
               </Field>
               {rightOfWay && (
-                <Field label="Тип полосы отвода">
-                  <Select value={rightOfWayType} onChange={(v) => setRightOfWayType(v)} options={[{ id: 'railway' as unknown as number, name: 'Ж/Д' }, { id: 'road' as unknown as number, name: 'Автодорога' }, { id: 'powerline' as unknown as number, name: 'ЛЭП' }]} placeholder="Тип полосы" />
+                <Field label="Тип ЗОУИТ">
+                  <Select value={rightOfWayType} onChange={(v) => setRightOfWayType(v)} options={refs.zouitTypes} placeholder="Тип ЗОУИТ" />
                 </Field>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Собственник" attention={missingOwner}>
-                <Input value={owner} onChange={setOwner} placeholder="ФИО или организация" attention={missingOwner} />
+                <Select value={owner} onChange={setOwner} options={ownerOptions} placeholder="Форма собственности" attention={missingOwner} />
               </Field>
-              <Field label="Источник информации" attention={missingSource}>
-                <Input value={source} onChange={setSource} placeholder="Откуда поступила информация" attention={missingSource} />
+              <Field label="Детальная информация о собственнике">
+                <Input value={source} onChange={setSource} placeholder="Необязательный комментарий о собственнике" />
               </Field>
             </div>
             <Field label="Примечание">
@@ -385,19 +433,21 @@ export function FireEditPage() {
             </div>
           )}
 
-          {!isCompleted && (
-            <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-2">
+            {currentUser?.role === 'admin' && (
               <button onClick={handleDelete} disabled={saving} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer">
                 Удалить
               </button>
-              <button onClick={() => navigate('/fires')} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-surface-hover transition-colors cursor-pointer">
-                Назад
-              </button>
+            )}
+            <button onClick={() => navigate('/fires')} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-surface-hover transition-colors cursor-pointer">
+              Назад
+            </button>
+            {!isCompleted && (
               <button onClick={handleSave} disabled={saving} className="flex-1 rounded-lg bg-primary py-3 font-medium text-white hover:bg-primary-hover disabled:opacity-50 transition-all active:scale-[0.99] cursor-pointer shadow-lg shadow-primary/20">
                 {saving ? 'Сохранение...' : fire.status === 'IN_REVIEW' ? 'Оформить КУЛП' : 'Сохранить'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -443,13 +493,9 @@ function Input({ value, onChange, placeholder, attention = false }: { value: str
   )
 }
 
-function Select({ value, onChange, options, placeholder, attention = false }: { value: number | string; onChange: (v: string) => void; options: { id: number; name: string }[]; placeholder?: string; attention?: boolean }) {
+function Select({ value, onChange, options, placeholder, attention = false }: { value: number | string; onChange: (v: string) => void; options: { id: number | string; name: string }[]; placeholder?: string; attention?: boolean }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={`w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none styled-select ${attentionClasses(attention)} ${value === '' || value === 0 ? 'text-text-muted' : 'text-text'}`}>
-      <option value="" disabled hidden>{placeholder || ''}</option>
-      <option value=""></option>
-      {options.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
-    </select>
+    <SearchableSelect value={value} onChange={onChange} options={options} placeholder={placeholder} attention={attention} />
   )
 }
 
@@ -468,35 +514,5 @@ function Info({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-text-muted uppercase tracking-wide mb-0.5">{label}</p>
       <p className="text-sm font-medium">{value}</p>
     </div>
-  )
-}
-
-function TimeInput({ value, onChange, attention = false }: { value: string; onChange: (v: string) => void; attention?: boolean }) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let raw = e.target.value.replace(/[^\d]/g, '').slice(0, 4)
-    if (raw.length >= 3) {
-      let h = raw.slice(0, 2)
-      let m = raw.slice(2)
-      if (Number(h) > 23) h = '23'
-      if (m.length === 2 && Number(m) > 59) m = '59'
-      onChange(`${h}:${m}`)
-    } else if (raw.length === 2) {
-      let h = raw
-      if (Number(h) > 23) h = '23'
-      onChange(`${h}:`)
-    } else {
-      onChange(raw)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && value.endsWith(':')) {
-      e.preventDefault()
-      onChange(value.slice(0, -1))
-    }
-  }
-
-  return (
-    <input type="text" inputMode="numeric" value={value} onChange={handleChange} onKeyDown={handleKeyDown} placeholder="00:00" className={`w-full rounded-lg border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all tabular-nums ${attentionClasses(attention)}`} />
   )
 }

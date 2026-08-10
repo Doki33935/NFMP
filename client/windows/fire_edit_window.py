@@ -118,6 +118,8 @@ class FireEditWindow(QWidget):
 
     def load_data(self):
         self.fire = self.api.get_fire(self.fire_id)
+        if self.fire.status == "OPEN":
+            self.fire = self.api.take_fire(self.fire_id)
         self.references = ReferenceWorker(self.api).load_all()
 
     def build_ui(self):
@@ -220,7 +222,6 @@ class FireEditWindow(QWidget):
         form = self.form()
 
         self.address = QLineEdit(self.fire.address or "")
-        self.comment = QLineEdit(self.fire.address_comment or "")
 
         self.municipality = SafeComboBox()
         self.settlement = SafeComboBox()
@@ -232,7 +233,6 @@ class FireEditWindow(QWidget):
         self.longitude = QLineEdit("" if self.fire.longitude is None else str(self.fire.longitude))
 
         form.addRow("Адрес", self.address)
-        form.addRow("Комментарий", self.comment)
         form.addRow("МО", self.municipality)
         form.addRow("Сельсовет", self.settlement)
         form.addRow("Широта", self.latitude)
@@ -259,7 +259,13 @@ class FireEditWindow(QWidget):
         index = self.right_of_way_type.findData(self.fire.right_of_way_type)
         self.right_of_way_type.setCurrentIndex(index if index >= 0 else 0)
 
-        self.owner = QLineEdit(self.fire.owner or "")
+        self.owner = SafeComboBox()
+        self.fill_combo(self.owner, self.references.get("owner_types", []))
+        owner_index = self.owner.findData(self.fire.owner)
+        if self.fire.owner and owner_index < 0:
+            self.owner.addItem(f"{self.fire.owner} (старое значение)", self.fire.owner)
+            owner_index = self.owner.count() - 1
+        self.owner.setCurrentIndex(owner_index if owner_index >= 0 else 0)
         self.source = QLineEdit(self.fire.source or "")
 
         self.extra = QPlainTextEdit()
@@ -267,10 +273,10 @@ class FireEditWindow(QWidget):
         self.extra.setFixedHeight(92)
 
         form.addRow("Лесничество", self.forestry)
-        form.addRow("Полоса отвода", self.right_of_way)
-        form.addRow("Тип полосы", self.right_of_way_type)
-        form.addRow("Владелец", self.owner)
-        form.addRow("Источник", self.source)
+        form.addRow("Наличие ЗОУИТ", self.right_of_way)
+        form.addRow("Тип ЗОУИТ", self.right_of_way_type)
+        form.addRow("Собственник", self.owner)
+        form.addRow("Детальная информация о собственнике", self.source)
         form.addRow("Дополнительно", self.extra)
 
         frame.layout().addLayout(form)
@@ -302,11 +308,11 @@ class FireEditWindow(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(6)
 
-        self.add_info_line(layout, "Карточку создал", self.fire.dispatcher_name or f"ID {self.fire.dispatcher_id}")
+        self.add_info_line(layout, "Карточку создал", self.fire.creator_name or f"ID {self.fire.creator_id}")
         self.add_info_line(layout, "Время оформления", self.format_datetime(self.fire.time_msg))
         self.add_info_line(layout, "Статус", self.fire.status)
-        if self.fire.inspector_name:
-            self.add_info_line(layout, "Инспектор", self.fire.inspector_name)
+        if self.fire.reviewer_name:
+            self.add_info_line(layout, "Дознаватель", self.fire.reviewer_name)
 
         frame.layout().addLayout(layout)
         return frame
@@ -346,11 +352,7 @@ class FireEditWindow(QWidget):
         combo.setCurrentIndex(index if index >= 0 else 0)
 
     def fill_right_of_way_types(self):
-        self.right_of_way_type.clear()
-        self.right_of_way_type.addItem("", None)
-        self.right_of_way_type.addItem("Полоса отвода железнодорожных путей", "railway")
-        self.right_of_way_type.addItem("Полоса отвода автомобильной дороги", "road")
-        self.right_of_way_type.addItem("Полоса отвода линии электропередачи", "powerline")
+        self.fill_combo(self.right_of_way_type, self.references.get("zouit_types", []))
 
     def on_municipality_changed(self, *args):
         municipality_id = self.municipality.currentData()
@@ -378,11 +380,9 @@ class FireEditWindow(QWidget):
     def on_right_of_way_changed(self, *args):
         enabled = self.right_of_way.currentData() is True
         self.right_of_way_type.setVisible(enabled)
-        self.owner.setVisible(enabled)
 
         if not enabled:
             self.right_of_way_type.setCurrentIndex(0)
-            self.owner.clear()
 
     def build_dto(self):
         end_date = self.end_date.value()
@@ -401,7 +401,6 @@ class FireEditWindow(QWidget):
             reason_id=self.reason.currentData(),
             area=self.parse_float(self.area.text(), "Площадь"),
             address=self.address.text(),
-            address_comment=self.comment.text() or None,
             municipality_id=self.municipality.currentData(),
             selsovet_id=self.settlement.currentData(),
             latitude=self.parse_float(self.latitude.text(), "Широта"),
@@ -409,10 +408,9 @@ class FireEditWindow(QWidget):
             forestry_id=self.forestry.currentData(),
             right_of_way=self.right_of_way.currentData() is True,
             right_of_way_type=self.right_of_way_type.currentData() or None,
-            owner=self.owner.text() or None,
+            owner=self.owner.currentData() or None,
             source=self.source.text() or None,
             extra=self.extra.toPlainText() or None,
-            inspector_id=self.user.id,
         )
 
     def validate_form(self):
@@ -431,7 +429,7 @@ class FireEditWindow(QWidget):
             errors.append("Для лесного пожара выберите лесничество")
 
         if self.right_of_way.currentData() is True and self.right_of_way_type.currentData() is None:
-            errors.append("Для полосы отвода выберите тип полосы")
+            errors.append("Для территории ЗОУИТ выберите тип ЗОУИТ")
 
         if errors:
             raise ValueError("\n".join(errors))

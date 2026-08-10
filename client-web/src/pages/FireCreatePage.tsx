@@ -5,6 +5,9 @@ import { createFire } from '@/hooks/useFires'
 import { useToastStore } from '@/store/toast'
 import { DateStepWidget } from '@/components/fire/DateStepWidget'
 import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
+import { TimeInput } from '@/components/fire/TimeInput'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import { FireLocationMap } from '@/components/map/FireLocationMap'
 import type { FireParticipantEventIn } from '@/types/fire'
 
 function todayLocalDate(): string {
@@ -15,6 +18,20 @@ function todayLocalDate(): string {
   return `${year}-${month}-${day}`
 }
 
+function isCompleteTime(value: string): boolean {
+  return /^\d{2}:\d{2}$/.test(value)
+}
+
+function parseOptionalNumber(value: string): number | null {
+  const normalized = value.trim().replace(',', '.')
+  return normalized ? Number(normalized) : null
+}
+
+function hasInvalidOptionalNumber(value: string): boolean {
+  const normalized = value.trim().replace(',', '.')
+  return Boolean(normalized) && Number.isNaN(Number(normalized))
+}
+
 export function FireCreatePage() {
   const navigate = useNavigate()
   const refs = useReferences()
@@ -23,11 +40,13 @@ export function FireCreatePage() {
   const [fireDate, setFireDate] = useState<string>(
     todayLocalDate()
   )
+  const [fireTime, setFireTime] = useState('')
   const [isForest, setIsForest] = useState(true)
   const [landTypeId, setLandTypeId] = useState<number | ''>('')
   const [area, setArea] = useState('')
   const [address, setAddress] = useState('')
-  const [addressComment, setAddressComment] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [municipalityId, setMunicipalityId] = useState<number | null>(null)
   const [selsovetId, setSelsovetId] = useState<number | null>(null)
   const [forestryId, setForestryId] = useState<number | null>(null)
@@ -69,15 +88,32 @@ export function FireCreatePage() {
       return
     }
 
+    if (!isCompleteTime(fireTime)) {
+      setError('Укажите время сообщения')
+      return
+    }
+
+    if (hasInvalidOptionalNumber(latitude) || hasInvalidOptionalNumber(longitude)) {
+      setError('Координаты должны быть числами')
+      return
+    }
+
+    if (rightOfWay && !rightOfWayType) {
+      setError('Выберите тип ЗОУИТ')
+      return
+    }
+
     setSaving(true)
     try {
       await createFire({
         fire_date: fireDate,
+        time_msg: `${fireDate}T${fireTime}:00`,
         is_forest: isForest,
         land_type_id: landTypeId ? Number(landTypeId) : null,
         area: area ? parseFloat(area.replace(',', '.')) : null,
         address: address.trim(),
-        address_comment: addressComment || undefined,
+        latitude: parseOptionalNumber(latitude),
+        longitude: parseOptionalNumber(longitude),
         municipality_id: municipalityId,
         selsovet_id: selsovetId,
         forestry_id: forestryId,
@@ -130,9 +166,12 @@ export function FireCreatePage() {
             icon="M12 2c1 3 2.5 3.5 3.5 4.5A5 5 0 0 1 17 10a5 5 0 0 1-5 5 5 5 0 0 1-5-5c0-1.5.5-2 1-3 .5 1.5 1.5 2 2 2a2 2 0 0 0 2-2c0-1.5-1-2-1-4z"
             title="Событие"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field label="Дата пожара">
                 <DateStepWidget value={fireDate} onChange={setFireDate} />
+              </Field>
+              <Field label="Время сообщения *">
+                <TimeInput value={fireTime} onChange={setFireTime} />
               </Field>
               <Field label="Тип пожара">
                 <div className="flex gap-2">
@@ -195,9 +234,14 @@ export function FireCreatePage() {
             <Field label="Адрес *">
               <Input value={address} onChange={setAddress} placeholder="Населённый пункт, ориентир..." />
             </Field>
-            <Field label="Комментарий к адресу">
-              <Input value={addressComment} onChange={setAddressComment} placeholder="Дополнительные сведения..." />
-            </Field>
+            <FireLocationMap
+              address={address}
+              latitude={latitude}
+              longitude={longitude}
+              onAddressChange={setAddress}
+              onLatitudeChange={setLatitude}
+              onLongitudeChange={setLongitude}
+            />
             <div className={`grid grid-cols-1 ${selsovets.length > 0 ? 'md:grid-cols-2' : ''} gap-4`}>
               <Field label="Муниципальное образование">
                 <Select
@@ -239,7 +283,7 @@ export function FireCreatePage() {
               </Field>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Полоса отвода">
+              <Field label="Наличие ЗОУИТ">
                 <div className="flex items-center gap-3 h-10">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -257,26 +301,22 @@ export function FireCreatePage() {
                 </div>
               </Field>
               {rightOfWay && (
-                <Field label="Тип полосы отвода">
+                <Field label="Тип ЗОУИТ">
                   <Select
                     value={rightOfWayType}
                     onChange={(v) => setRightOfWayType(v)}
-                    options={[
-                      { id: 'railway' as unknown as number, name: 'Ж/Д' },
-                      { id: 'road' as unknown as number, name: 'Автодорога' },
-                      { id: 'powerline' as unknown as number, name: 'ЛЭП' },
-                    ]}
-                    placeholder="Тип полосы"
+                    options={refs.zouitTypes}
+                    placeholder="Тип ЗОУИТ"
                   />
                 </Field>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field label="Собственник">
-                <Input value={owner} onChange={setOwner} placeholder="ФИО или организация" />
+                <Select value={owner} onChange={setOwner} options={refs.ownerTypes} placeholder="Форма собственности" />
               </Field>
-              <Field label="Источник информации">
-                <Input value={source} onChange={setSource} placeholder="Откуда поступила информация" />
+              <Field label="Детальная информация о собственнике">
+                <Input value={source} onChange={setSource} placeholder="Необязательный комментарий о собственнике" />
               </Field>
             </div>
             <Field label="Примечание">
@@ -404,23 +444,16 @@ function Select({
 }: {
   value: number | string
   onChange: (v: string) => void
-  options: { id: number; name: string }[]
+  options: { id: number | string; name: string }[]
   placeholder?: string
 }) {
   return (
-    <select
+    <SearchableSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none styled-select ${value === '' || value === 0 ? 'text-text-muted' : 'text-text'}`}
-    >
-      <option value="" disabled hidden>{placeholder || ''}</option>
-      <option value=""></option>
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.name}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+    />
   )
 }
 

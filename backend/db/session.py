@@ -7,7 +7,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     user = os.getenv("POSTGRES_USER", "fire_user")
-    password = os.getenv("POSTGRES_PASSWORD", "fire_pass")
+    password = os.getenv("POSTGRES_PASSWORD")
+    if not password:
+        raise RuntimeError("DATABASE_URL or POSTGRES_PASSWORD is required")
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "fire_db")

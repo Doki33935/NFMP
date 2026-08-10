@@ -19,6 +19,16 @@ export interface Forestry {
   name: string
 }
 
+export interface ZouitType {
+  id: string
+  name: string
+}
+
+export interface OwnerType {
+  id: string
+  name: string
+}
+
 export interface FireParticipant {
   id: number
   name: string

@@ -1,15 +1,16 @@
 # NFMP
 
-NFMP - веб-приложение для учета и мониторинга природных пожаров.
+Веб-приложение для регистрации, оформления и мониторинга природных пожаров.
 
-Состав проекта:
+## Состав
 
-- `backend` - FastAPI API, PostgreSQL, Alembic migrations.
-- `client-web` - React/Vite интерфейс.
+- `backend` - FastAPI API, Alembic migrations, PostgreSQL access.
+- `client-web` - React/Vite web interface.
 - `db` - PostgreSQL 16.
-- `db-backup` - автоматические резервные копии PostgreSQL.
+- `db-restore` - одноразовая проверка и восстановление БД из последнего бекапа перед стартом backend.
+- `db-backup` - периодические резервные копии PostgreSQL.
 
-## Быстрый запуск
+## Первый запуск
 
 Требования:
 
@@ -17,7 +18,7 @@ NFMP - веб-приложение для учета и мониторинга �
 - Docker Compose plugin
 - Git
 
-Клонировать проект:
+Склонировать проект:
 
 ```powershell
 git clone https://github.com/Doki33935/NFMP.git
@@ -25,26 +26,24 @@ cd NFMP
 git checkout dev
 ```
 
-Создать `.env` из примера:
-
-```powershell
-copy .env.example .env
-```
-
-Минимальные значения по умолчанию:
+Создать файл `.env` в корне проекта:
 
 ```env
 POSTGRES_USER=fire_user
-POSTGRES_PASSWORD=fire_pass
+POSTGRES_PASSWORD=replace-with-a-strong-database-password
 POSTGRES_DB=fire_db
 POSTGRES_PORT=5432
-SECRET_KEY=change-me
-BACKUP_INTERVAL_SECONDS=2592000
-BACKUP_RETENTION_DAYS=14
+SECRET_KEY=replace-with-a-random-secret-of-at-least-32-characters
+INITIAL_ADMIN_USERNAME=admin
+INITIAL_ADMIN_PASSWORD=replace-with-a-strong-initial-password
+BACKUP_INTERVAL_SECONDS=21600
+BACKUP_RETENTION_DAYS=30
+BACKUP_RETENTION_COUNT=120
+BACKUP_ON_START=true
 TZ=Asia/Yekaterinburg
 ```
 
-На рабочем сервере замените `SECRET_KEY` на длинную случайную строку.
+`SECRET_KEY`, пароль PostgreSQL и начальный пароль администратора должны быть уникальными случайными значениями. Начальный администратор создаётся только в пустой БД.
 
 Запуск:
 
@@ -57,6 +56,8 @@ docker compose up -d --build
 ```powershell
 docker compose ps
 docker compose logs --tail=100 backend
+docker compose logs --tail=100 db-restore
+docker compose logs --tail=100 db-backup
 ```
 
 Адреса:
@@ -65,93 +66,105 @@ docker compose logs --tail=100 backend
 - Backend Swagger: `http://localhost:8000/docs`
 - PostgreSQL: `localhost:5432`
 
-Первый пользователь на пустой базе:
+### Карта
 
-- логин: `111`
-- пароль: `111`
-- роль: `admin`
+Карта работает на Leaflet и OpenStreetMap без API-ключа. Поиск адресов выполняется
+через Nominatim только по явному действию пользователя.
 
-## Структура Docker-сервисов
+В `client-web/public/data/orenburg-municipalities.geojson` хранится локальный слой
+42 муниципальных образований Оренбургской области. Исходный набор подготовлен
+НИУ ВШЭ на основе геометрии OpenStreetMap и атрибутов Росстата (границы на
+01.01.2021). Для повторной сборки слоя используется
+`scripts/extract_orenburg_boundaries.py`.
 
-```text
-db          PostgreSQL 16
-backend     FastAPI API, порт 8000
-client-web  React/Vite, порт 3000
-db-backup   периодические бекапы БД
+## Production-запуск
+
+Укажите в `.env` публичный адрес и разрешённый источник браузера:
+
+```env
+SITE_ADDRESS=fire.example.com
+CORS_ORIGINS=https://fire.example.com
+ENVIRONMENT=production
 ```
+
+Запустите отдельный production-профиль:
+
+```powershell
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+В этом профиле наружу опубликованы только порты `80/443` Caddy. PostgreSQL и API доступны только во внутренней Docker-сети, Swagger отключён, а TLS-сертификат выпускается автоматически для корректно настроенного домена.
+
+## Данные и восстановление
 
 Данные PostgreSQL хранятся в Docker volume `postgres_data`.
 
-Папка `backups/` примонтирована в backend и backup-контейнер. Сами `.dump` файлы игнорируются git, в репозитории хранится только `backups/.gitkeep`.
+Бекапы хранятся в папке `backups/` в формате `fire_db_YYYY-MM-DD_HH-MM-SS.dump`. Сами `.dump` файлы не коммитятся в git.
 
-## Миграции
+При запуске сервисов порядок такой:
 
-Backend при запуске применяет миграции автоматически:
+1. `db` запускает PostgreSQL.
+2. `db-restore` проверяет целевую БД.
+3. Если БД отсутствует или в ней нет таблиц, `db-restore` восстанавливает последний непустой dump из `backups/`.
+4. Если БД уже содержит таблицы, восстановление пропускается.
+5. После успешного `db-restore` запускаются `backend` и `db-backup`.
 
-```text
-alembic upgrade head
-```
+Это закрывает сценарии:
 
-Ручные команды:
+- сервер перезапущен, volume БД на месте - данные остаются как есть;
+- БД была удалена или volume пустой - сервис поднимет ее из последнего бекапа;
+- бекапов нет - backend создаст чистую БД миграциями и seed-данными.
 
-```powershell
-docker compose exec backend alembic current
-docker compose exec backend alembic history
-docker compose exec backend alembic upgrade head
-```
+## Автоматические бекапы
 
-## Бекапы
-
-Автоматический бекап выполняет сервис `db-backup`.
-
-По умолчанию:
-
-- период: `2592000` секунд, примерно 30 дней;
-- хранение старых дампов: `14` дней;
-- папка: `backups/`.
-
-Настройки задаются в `.env`:
+`db-backup` делает резервную копию каждые 6 часов:
 
 ```env
-BACKUP_INTERVAL_SECONDS=2592000
-BACKUP_RETENTION_DAYS=14
+BACKUP_INTERVAL_SECONDS=21600
 ```
 
-Запустить backup-сервис:
+При старте backup-сервиса сразу создаётся свежая копия:
+
+```env
+BACKUP_ON_START=true
+```
+
+Копии старше 30 дней удаляются; дополнительно хранится не более 120 последних файлов:
+
+```env
+BACKUP_RETENTION_DAYS=30
+BACKUP_RETENTION_COUNT=120
+```
+
+Каждый dump проверяется через `pg_restore --list` до публикации готового файла.
+
+Проверить backup-сервис:
 
 ```powershell
-docker compose up -d db-backup
+docker compose logs -f db-backup
 ```
 
-Сделать бекап вручную на Windows:
+## Ручной бекап и восстановление
+
+Создать бекап вручную на Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\backup-db.ps1
 ```
 
-Восстановить конкретный бекап на Windows:
+Восстановить конкретный dump вручную:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\restore-db.ps1 -BackupFile backups\fire_db_YYYY-MM-DD_HH-mm-ss.dump
 ```
 
-Важно: восстановление заменяет содержимое базы. Перед восстановлением сделайте свежий бекап.
-
-## Reset к последнему бекапу
-
-В приложении оставлен один endpoint для отката БД:
+Endpoint отката к последнему dump по умолчанию отключён. Для временного включения задайте `ENABLE_REMOTE_RESTORE=true`; после операции параметр следует убрать:
 
 ```text
 POST /admin/reset
 ```
 
-Он требует Bearer token пользователя с ролью `admin` и восстанавливает самый свежий файл `backups/fire_db_*.dump`.
-
-Пример:
-
-```powershell
-curl -X POST http://localhost:8000/admin/reset -H "Authorization: Bearer ADMIN_TOKEN"
-```
+Endpoint требует активную сессию администратора. На рабочем сервере предпочтительно выполнять восстановление вручную в окне обслуживания.
 
 ## Полезные команды
 
@@ -161,30 +174,16 @@ curl -X POST http://localhost:8000/admin/reset -H "Authorization: Bearer ADMIN_T
 docker compose up -d
 ```
 
-Остановить сервисы:
+Остановить сервисы без удаления данных:
 
 ```powershell
 docker compose down
 ```
 
-Перезапустить все:
+Пересобрать и запустить:
 
 ```powershell
-docker compose restart
-```
-
-Перезапустить только backend:
-
-```powershell
-docker compose restart backend
-```
-
-Пересобрать без удаления данных БД:
-
-```powershell
-docker compose down
-docker compose build --no-cache
-docker compose up -d
+docker compose up -d --build
 ```
 
 Смотреть логи:
@@ -194,13 +193,8 @@ docker compose logs -f
 docker compose logs -f backend
 docker compose logs -f client-web
 docker compose logs -f db
+docker compose logs -f db-restore
 docker compose logs -f db-backup
-```
-
-Последние строки логов backend:
-
-```powershell
-docker compose logs --tail=200 backend
 ```
 
 Зайти в PostgreSQL:
@@ -230,29 +224,28 @@ Frontend:
 docker compose exec -T client-web npm run build
 ```
 
+Compose:
+
+```powershell
+docker compose config --quiet
+```
+
 Git whitespace check:
 
 ```powershell
 git diff --check
 ```
 
-## Обновление на сервере
+## Важно
+
+Не используйте `docker compose down -v` на рабочем сервере без свежего бекапа. Эта команда удаляет Docker volumes, включая PostgreSQL data.
+
+Если сломался только frontend `node_modules`, можно удалить только его volume:
 
 ```powershell
-cd NFMP
-git pull origin dev
+docker compose down
+docker volume rm nfmp_client_web_node_modules
 docker compose up -d --build
-docker compose ps
-docker compose logs --tail=100 backend
 ```
 
-## Что не хранится в git
-
-Не коммитятся:
-
-- `.env`
-- `backups/*.dump`
-- `node_modules`
-- Python cache/build артефакты
-
-Для передачи чистой стартовой БД используйте свежий `.dump` в `backups/` на сервере. Endpoint `/admin/reset` всегда берет самый новый dump из этой папки.
+Не удаляйте `nfmp_postgres_data`, если не хотите восстановление БД из backup.

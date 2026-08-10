@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFireList } from '@/hooks/useFires'
-import { useToastStore } from '@/store/toast'
-import type { FireResponse } from '@/types/fire'
 
 const STATUSES = [
   { value: 'OPEN', label: 'Открытые' },
@@ -26,81 +24,16 @@ function statusLabel(status: string): string {
   return map[status] || status
 }
 
-function exportToCSV(fires: FireResponse[]) {
-  const headers = [
-    'ID',
-    'Дата пожара',
-    'Тип',
-    'Адрес',
-    'Комментарий к адресу',
-    'Площадь (га)',
-    'Статус',
-    'Лесничество',
-    'Полоса отвода',
-    'Тип полосы',
-    'Собственник',
-    'Источник информации',
-    'Примечание',
-    'Создал',
-    'Проверяющий',
-    'Время сообщения',
-  ]
-
-  const rows = fires.map((f) => [
-    f.id,
-    formatDate(f.fire_date),
-    f.is_forest ? 'Лесной' : 'Ландшафтный',
-    `"${(f.address || '').replace(/"/g, '""')}"`,
-    `"${(f.address_comment || '').replace(/"/g, '""')}"`,
-    f.area ?? '',
-    statusLabel(f.status),
-    f.forestry_id ?? '',
-    f.right_of_way ? 'Да' : 'Нет',
-    f.right_of_way_type || '',
-    `"${(f.owner || '').replace(/"/g, '""')}"`,
-    `"${(f.source || '').replace(/"/g, '""')}"`,
-    `"${(f.extra || '').replace(/"/g, '""')}"`,
-    `"${(f.creator_name || '').replace(/"/g, '""')}"`,
-    `"${(f.reviewer_name || '').replace(/"/g, '""')}"`,
-    f.time_msg || '',
-  ])
-
-  const csv = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `fires_${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 export function FireListPage() {
   const [status, setStatus] = useState('OPEN')
   const { fires, loading } = useFireList(status)
   const navigate = useNavigate()
-  const toast = useToastStore((s) => s.add)
-
-  const handleExport = () => {
-    if (fires.length === 0) {
-      toast('Нет данных для экспорта', 'error')
-      return
-    }
-    exportToCSV(fires)
-    toast(`Экспортировано ${fires.length} записей`, 'success')
-  }
 
   return (
     <div className="p-4 md:p-6 animate-fade-in">
       <div className="max-w-4xl mx-auto space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-xl font-bold">Список пожаров</h1>
-          <button
-            onClick={handleExport}
-            className="px-3 py-1.5 rounded-md bg-surface text-text-muted text-sm hover:bg-surface-hover hover:text-text transition-colors cursor-pointer"
-          >
-            Экспорт CSV
-          </button>
         </div>
 
         <div className="flex gap-2 flex-wrap">

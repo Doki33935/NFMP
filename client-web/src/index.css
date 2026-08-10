@@ -119,3 +119,49 @@ select:focus-visible {
 select {
   color-scheme: dark;
 }
+
+@layer components {
+  .form-input {
+    @apply w-full rounded-md bg-background border border-border px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all;
+  }
+}
+
+.leaflet-container {
+  background: var(--color-background);
+  color: #1f2937;
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+.fire-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.fire-map-marker span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
+}
+
+.fire-map-marker--open span {
+  background: #dc2626;
+}
+
+.fire-map-marker--review span {
+  background: #d97706;
+}
+
+.fire-map-marker--completed span {
+  background: #16a34a;
+}
+
+.fire-map-marker--unknown span {
+  background: #6b7280;
+}
