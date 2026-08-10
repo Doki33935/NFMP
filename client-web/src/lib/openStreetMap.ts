@@ -40,8 +40,12 @@ export function createOpenStreetMap(container: HTMLElement): L.Map {
   return map
 }
 
-export async function addOrenburgDistricts(map: L.Map): Promise<L.GeoJSON> {
+export async function addOrenburgDistricts(
+  map: L.Map,
+  isCancelled: () => boolean = () => false
+): Promise<L.GeoJSON | null> {
   const collection = await loadDistricts()
+  if (isCancelled()) return null
   return L.geoJSON(collection, {
     style: {
       color: '#f87171',
@@ -136,6 +140,7 @@ function requestNominatim<T>(path: string): Promise<T> {
 }
 
 function parseNumericCoordinates(latitude: string, longitude: string): MapCoordinates | null {
+  if (!latitude.trim() || !longitude.trim()) return null
   const lat = Number(latitude)
   const lon = Number(longitude)
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null

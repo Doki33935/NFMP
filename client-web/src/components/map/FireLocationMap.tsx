@@ -34,6 +34,7 @@ export function FireLocationMap({
   const mapRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.CircleMarker | null>(null)
   const requestNumberRef = useRef(0)
+  const viewWasChangedRef = useRef(false)
   const placeMarkerRef = useRef<(coordinates: MapCoordinates, caption?: string) => void>(() => {})
   const [status, setStatus] = useState<MapStatus>('loading')
   const [searching, setSearching] = useState(false)
@@ -48,6 +49,7 @@ export function FireLocationMap({
 
   useEffect(() => {
     if (!containerRef.current) return
+    let disposed = false
 
     try {
       const map = createOpenStreetMap(containerRef.current)
@@ -72,13 +74,19 @@ export function FireLocationMap({
       const initialSelection = getInitialSelection()
       const initialCoordinates = parseMapCoordinates(initialSelection.latitude, initialSelection.longitude)
       if (initialCoordinates) {
+        viewWasChangedRef.current = true
         placeMarkerRef.current(initialCoordinates, initialSelection.address || 'Место пожара')
         map.setView(initialCoordinates, 14)
       }
 
+      map.on('dragstart zoomstart', () => {
+        viewWasChangedRef.current = true
+      })
+
       map.on('click', ({ latlng }: L.LeafletMouseEvent) => {
         const coordinates: MapCoordinates = [latlng.lat, latlng.lng]
         const requestNumber = ++requestNumberRef.current
+        viewWasChangedRef.current = true
         setCoordinatesFromMap(coordinates)
         placeMarkerRef.current(coordinates)
         setMessage('Точка выбрана, определяю адрес...')
@@ -101,12 +109,19 @@ export function FireLocationMap({
           })
       })
 
-      void addOrenburgDistricts(map).catch(() => {
-        setMessage('Карта загружена без границ районов')
-      })
+      void addOrenburgDistricts(map, () => disposed)
+        .then((districts) => {
+          if (districts && !viewWasChangedRef.current && districts.getBounds().isValid()) {
+            map.fitBounds(districts.getBounds(), { padding: [16, 16], maxZoom: 7 })
+          }
+        })
+        .catch(() => {
+          if (!disposed) setMessage('Карта загружена без границ районов')
+        })
       const readyFrame = window.requestAnimationFrame(() => setStatus('ready'))
 
       return () => {
+        disposed = true
         window.cancelAnimationFrame(readyFrame)
         requestNumberRef.current += 1
         map.remove()
@@ -149,6 +164,7 @@ export function FireLocationMap({
       onLongitudeChange(formatCoordinate(found.coordinates[1]))
       onAddressChange(found.address)
       placeMarkerRef.current(found.coordinates, found.address)
+      viewWasChangedRef.current = true
       map.setView(found.coordinates, 15)
       setMessage(found.address)
     } catch (error) {

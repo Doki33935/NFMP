@@ -35,6 +35,7 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
 
   useEffect(() => {
     if (!containerRef.current) return
+    let disposed = false
 
     try {
       const map = createOpenStreetMap(containerRef.current)
@@ -53,12 +54,13 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
       mapRef.current = map
       markersRef.current = markers
 
-      void addOrenburgDistricts(map).catch(() => {
-        setMessage('Карта загружена без границ районов')
+      void addOrenburgDistricts(map, () => disposed).catch(() => {
+        if (!disposed) setMessage('Карта загружена без границ районов')
       })
       const readyFrame = window.requestAnimationFrame(() => setStatus('ready'))
 
       return () => {
+        disposed = true
         window.cancelAnimationFrame(readyFrame)
         map.remove()
         mapRef.current = null
