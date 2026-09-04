@@ -57,6 +57,38 @@ def test_login_uses_http_only_cookie(api_context):
     assert "SameSite=strict" in cookie
 
 
+def test_login_cookie_is_secure_in_production_by_default(api_context, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
+
+    response = api_context["client"].post(
+        "/login",
+        json={
+            "username": "dispatcher",
+            "password": "Strong-dispatcher-password-2026",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert "; Secure" in response.headers["set-cookie"]
+
+
+def test_login_cookie_can_be_used_on_internal_http(api_context, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
+
+    response = api_context["client"].post(
+        "/login",
+        json={
+            "username": "dispatcher",
+            "password": "Strong-dispatcher-password-2026",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert "; Secure" not in response.headers["set-cookie"]
+
+
 def test_user_is_disabled_without_deleting_history(api_context):
     context = api_context
     admin = context["roles"]["admin"]

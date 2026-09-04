@@ -19,6 +19,11 @@ failed_attempts: dict[str, deque[datetime]] = defaultdict(deque)
 attempts_lock = Lock()
 
 
+def session_cookie_secure() -> bool:
+    default = "true" if os.getenv("ENVIRONMENT", "development").lower() == "production" else "false"
+    return os.getenv("SESSION_COOKIE_SECURE", default).strip().lower() not in {"0", "false", "no", "off"}
+
+
 def login_key(request: Request, username: str) -> str:
     forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
     client_ip = forwarded or (request.client.host if request.client else "unknown")
@@ -58,7 +63,7 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
         value=access_token,
         max_age=ACCESS_TOKEN_EXPIRE_SECONDS,
         httponly=True,
-        secure=os.getenv("ENVIRONMENT", "development").lower() == "production",
+        secure=session_cookie_secure(),
         samesite="strict",
         path="/",
     )

@@ -31,6 +31,9 @@ export function createOpenStreetMap(container: HTMLElement): L.Map {
     preferCanvas: true,
   })
 
+  // Keep the required map data attribution, but remove Leaflet's flag-shaped logo.
+  map.attributionControl.setPrefix(false)
+
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

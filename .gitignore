@@ -205,6 +205,11 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Local virtual appliance artifacts and credentials
+*.ova
+*.ova.sha256
+NFMP-VM-CREDENTIALS.txt
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
