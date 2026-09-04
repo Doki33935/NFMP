@@ -1,0 +1,8 @@
+services:
+  backend:
+    environment:
+      SESSION_COOKIE_SECURE: "false"
+
+  caddy:
+    ports: !override
+      - "80:80"

@@ -15,6 +15,7 @@ NFMP: развертывание в VirtualBox 6.0.24
 - Сетевой адаптер: Intel PRO/1000 MT Desktop, сетевой мост
 - Веб-интерфейс: http://10.97.101.209
 - SSH: 10.97.101.209:22
+- Опубликованные приложением порты: TCP 80 (HTTPS в закрытом сегменте не используется)
 
 Требования к серверу
 --------------------
@@ -71,6 +72,11 @@ NFMP-VM-CREDENTIALS.txt. Не загружайте этот файл в публ
 Перезапуск:
   cd /opt/nfmp
   docker compose -f docker-compose.prod.yml -f docker-compose.vm.yml up -d
+
+Обновление после получения новой версии кода:
+  cd /opt/nfmp
+  git pull --ff-only
+  docker compose -f docker-compose.prod.yml -f docker-compose.vm.yml up -d --build
 
 Просмотр журналов:
   cd /opt/nfmp
