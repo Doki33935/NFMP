@@ -52,7 +52,11 @@ export function FireLocationMap({
     let disposed = false
 
     try {
-      const map = createOpenStreetMap(containerRef.current)
+      const map = createOpenStreetMap(containerRef.current, (baseMapStatus) => {
+        if (disposed) return
+        if (baseMapStatus === 'fallback') setMessage('Включена резервная подложка карты')
+        if (baseMapStatus === 'unavailable') setMessage('Подложка недоступна; точку можно поставить вручную')
+      })
       mapRef.current = map
       placeMarkerRef.current = (coordinates, caption = 'Место пожара') => {
         if (markerRef.current) {

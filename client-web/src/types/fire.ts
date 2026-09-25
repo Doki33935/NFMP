@@ -1,7 +1,13 @@
+export interface ParticipantEquipment {
+  tech_type_id: number
+  quantity: number
+}
+
 export interface FireParticipantEventIn {
   participant_id: number
-  arrival_time: string
+  arrival_time?: string | null
   tech_type_id?: number | null
+  equipment: ParticipantEquipment[]
   comment?: string
 }
 
@@ -9,14 +15,16 @@ export interface FireParticipantEventOut {
   id: number
   fire_id: number
   participant_id: number
-  arrival_time: string
+  arrival_time?: string | null
   tech_type_id?: number | null
+  equipment?: ParticipantEquipment[]
   comment?: string
 }
 
 export interface FireCreate {
   fire_date: string
   time_msg: string
+  end_time?: string | null
   is_forest: boolean
   land_type_id?: number | null
   area?: number | null
@@ -32,7 +40,7 @@ export interface FireCreate {
   owner?: string
   source?: string
   extra?: string
-  external_card_number?: string
+  external_card_number?: string | null
   participants?: FireParticipantEventIn[]
 }
 
@@ -55,7 +63,7 @@ export interface FireUpdate {
   source?: string
   extra?: string
   end_time?: string | null
-  external_card_number?: string
+  external_card_number?: string | null
   participants?: FireParticipantEventIn[]
 }
 

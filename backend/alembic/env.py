@@ -8,7 +8,7 @@ from db.base import Base
 
 from models.user import User
 from models.fire import Fire
-from models.fire_participant_events import FireParticipantEvent
+from models.fire_participant_events import FireParticipantEvent, FireParticipantEventEquipment
 from models.fire_participants import FireParticipant
 from models.forestries import Forestry
 from models.land_types import LandType

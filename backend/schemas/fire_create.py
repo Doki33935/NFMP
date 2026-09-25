@@ -6,6 +6,7 @@ from schemas.participant import FireParticipantEventIn, FireParticipantEventOut
 class FireCreate(BaseModel):
     fire_date: date
     time_msg: datetime
+    end_time: Optional[datetime] = None
 
     is_forest: bool
     land_type_id: Optional[int] = None

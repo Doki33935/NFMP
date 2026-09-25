@@ -41,9 +41,9 @@ def create_user(
 ):
     existing = db.query(User).filter(User.username == user.username).first()
     if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
+        raise HTTPException(status_code=400, detail="Пользователь с таким логином уже существует")
     if user.role not in ALLOWED_ROLES:
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise HTTPException(status_code=400, detail="Выбраны недопустимые права пользователя")
 
     user_obj = User(
         username=user.username,
@@ -69,11 +69,11 @@ def update_user(
     current_user: User = Depends(get_current_user),
 ):
     if current_user.id != user_id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Недостаточно прав для изменения пользователя")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -86,32 +86,32 @@ def update_user(
     if username is not None:
         username = username.strip()
         if not username:
-            raise HTTPException(status_code=400, detail="Username is required")
+            raise HTTPException(status_code=400, detail="Логин не заполнен")
         existing = db.query(User).filter(User.username == username, User.id != user_id).first()
         if existing:
-            raise HTTPException(status_code=400, detail="User already exists")
+            raise HTTPException(status_code=400, detail="Пользователь с таким логином уже существует")
         user.username = username
 
     full_name = update_data.get("full_name")
     if full_name is not None:
         full_name = full_name.strip()
         if not full_name:
-            raise HTTPException(status_code=400, detail="Full name is required")
+            raise HTTPException(status_code=400, detail="ФИО не заполнено")
         user.full_name = full_name
 
     role = update_data.get("role")
     if role is not None:
         if role not in ALLOWED_ROLES:
-            raise HTTPException(status_code=400, detail="Invalid role")
+            raise HTTPException(status_code=400, detail="Выбраны недопустимые права пользователя")
         if user.id == current_user.id and role != "admin":
-            raise HTTPException(status_code=400, detail="Cannot remove your own admin role")
+            raise HTTPException(status_code=400, detail="Нельзя снять права администратора у своей учётной записи")
         user.role = role
 
     password = update_data.get("password")
     password_confirmation = update_data.get("password_confirmation")
     if password:
         if password_confirmation is None or password != password_confirmation:
-            raise HTTPException(status_code=400, detail="Passwords do not match")
+            raise HTTPException(status_code=400, detail="Пароли не совпадают")
         user.password = hash_password(password)
 
     db.commit()

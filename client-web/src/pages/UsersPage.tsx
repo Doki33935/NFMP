@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useToastStore } from '@/store/toast'
 import api from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/errors'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import type { User, UserUpdate } from '@/types/user'
 
@@ -87,7 +88,7 @@ export function UsersPage() {
       loadUsers()
     } catch (err) {
       console.error('Failed to create user:', err)
-      toast('Ошибка при создании пользователя', 'error')
+      toast(getApiErrorMessage(err, 'Ошибка при создании пользователя'), 'error')
     } finally {
       setSaving(false)
     }
@@ -120,7 +121,7 @@ export function UsersPage() {
       loadUsers()
     } catch (err) {
       console.error(`Failed to update user id=${editingUser.id}:`, err)
-      toast('Ошибка при сохранении пользователя', 'error')
+      toast(getApiErrorMessage(err, 'Ошибка при сохранении пользователя'), 'error')
     } finally {
       setSavingEdit(false)
     }
@@ -220,7 +221,7 @@ export function UsersPage() {
                           <td className="py-3 pr-3">{ROLE_LABELS[u.role] || u.role}</td>
                           <td className="py-3">
                             <div className="flex justify-end gap-2">
-                              <button onClick={() => startEdit(u)} disabled={u.is_active === false} className="px-3 py-1.5 rounded-md bg-background hover:bg-surface-hover text-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-40">
+                              <button onClick={() => startEdit(u)} className="px-3 py-1.5 rounded-md bg-background hover:bg-surface-hover text-sm cursor-pointer">
                                 Изменить
                               </button>
                               {u.is_active === false ? (

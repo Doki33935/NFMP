@@ -17,7 +17,7 @@ from api import auth, fire, users
 from core.security import get_current_user, get_db, hash_password
 from db.base import Base
 from models.fire import Fire  # noqa: F401
-from models.fire_participant_events import FireParticipantEvent  # noqa: F401
+from models.fire_participant_events import FireParticipantEvent, FireParticipantEventEquipment  # noqa: F401
 from models.fire_participants import FireParticipant  # noqa: F401
 from models.forestries import Forestry  # noqa: F401
 from models.land_types import LandType  # noqa: F401
@@ -65,7 +65,20 @@ def api_context():
     db.flush()
     selsovet = Selsovet(name="Test settlement", municipality_id=municipality.id)
     reason = Reason(name="Test reason", group_id=reason_group.id)
-    db.add_all([selsovet, reason])
+    participant = FireParticipant(name="Test responders")
+    population = FireParticipant(name="Население")
+    no_participants = FireParticipant(name="Участники тушения пожара отсутствовали")
+    tech_type = TechType(name="Test engine")
+    second_tech_type = TechType(name="Test tanker")
+    db.add_all([
+        selsovet,
+        reason,
+        participant,
+        population,
+        no_participants,
+        tech_type,
+        second_tech_type,
+    ])
     db.commit()
 
     current = {"user": roles["admin"]}
@@ -95,6 +108,11 @@ def api_context():
             "land_type": land_type,
             "forestry": forestry,
             "reason": reason,
+            "participant": participant,
+            "population": population,
+            "no_participants": no_participants,
+            "tech_type": tech_type,
+            "second_tech_type": second_tech_type,
         }
 
     db.close()

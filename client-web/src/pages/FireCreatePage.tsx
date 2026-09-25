@@ -8,6 +8,7 @@ import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
 import { TimeInput } from '@/components/fire/TimeInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { FireLocationMap } from '@/components/map/FireLocationMap'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { FireParticipantEventIn } from '@/types/fire'
 
 function todayLocalDate(): string {
@@ -41,7 +42,10 @@ export function FireCreatePage() {
     todayLocalDate()
   )
   const [fireTime, setFireTime] = useState('')
-  const [isForest, setIsForest] = useState(true)
+  const [isForest, setIsForest] = useState(false)
+  const [endDate, setEndDate] = useState(todayLocalDate())
+  const [endTime, setEndTime] = useState('')
+  const [liquidationTouched, setLiquidationTouched] = useState(false)
   const [landTypeId, setLandTypeId] = useState<number | ''>('')
   const [area, setArea] = useState('')
   const [address, setAddress] = useState('')
@@ -67,7 +71,7 @@ export function FireCreatePage() {
   const addParticipant = () => {
     setParticipants([
       ...participants,
-      { participant_id: 0, arrival_time: '', tech_type_id: null },
+      { participant_id: 0, arrival_time: null, tech_type_id: null, equipment: [] },
     ])
   }
 
@@ -93,6 +97,11 @@ export function FireCreatePage() {
       return
     }
 
+    if (area.trim() && hasInvalidOptionalNumber(area)) {
+      setError('Площадь: укажите число')
+      return
+    }
+
     if (hasInvalidOptionalNumber(latitude) || hasInvalidOptionalNumber(longitude)) {
       setError('Координаты должны быть числами')
       return
@@ -108,6 +117,7 @@ export function FireCreatePage() {
       await createFire({
         fire_date: fireDate,
         time_msg: `${fireDate}T${fireTime}:00`,
+        end_time: endDate && isCompleteTime(endTime) ? `${endDate}T${endTime}:00` : undefined,
         is_forest: isForest,
         land_type_id: landTypeId ? Number(landTypeId) : null,
         area: area ? parseFloat(area.replace(',', '.')) : null,
@@ -123,12 +133,17 @@ export function FireCreatePage() {
         owner: owner || undefined,
         source: source || undefined,
         extra: extra || undefined,
-        participants: participants.filter((p) => p.participant_id > 0),
+        participants: participants
+          .filter((p) => p.participant_id > 0)
+          .map((participant) => ({
+            ...participant,
+            equipment: participant.equipment.filter((item) => item.tech_type_id > 0),
+          })),
       })
       toast('Пожар создан', 'success')
       navigate('/')
-    } catch {
-      setError('Ошибка при создании')
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, 'Ошибка при создании'))
     } finally {
       setSaving(false)
     }
@@ -168,10 +183,22 @@ export function FireCreatePage() {
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field label="Дата пожара">
-                <DateStepWidget value={fireDate} onChange={setFireDate} />
+                <DateStepWidget
+                  value={fireDate}
+                  onChange={(value) => {
+                    if (!liquidationTouched) setEndDate(value)
+                    setFireDate(value)
+                  }}
+                />
               </Field>
               <Field label="Время сообщения *">
-                <TimeInput value={fireTime} onChange={setFireTime} />
+                <TimeInput
+                  value={fireTime}
+                  onChange={(value) => {
+                    if (!liquidationTouched) setEndTime(value)
+                    setFireTime(value)
+                  }}
+                />
               </Field>
               <Field label="Тип пожара">
                 <div className="flex gap-2">
@@ -327,6 +354,24 @@ export function FireCreatePage() {
                 className="w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all resize-none"
               />
             </Field>
+          </Section>
+
+          <Section
+            icon="M9 12l2 2 4-4M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"
+            title="Ликвидация"
+          >
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <Field label="Дата ликвидации">
+                  <DateStepWidget value={endDate} onChange={(value) => { setLiquidationTouched(true); setEndDate(value) }} />
+                </Field>
+              </div>
+              <div className="w-28">
+                <Field label="Время">
+                  <TimeInput value={endTime} onChange={(value) => { setLiquidationTouched(true); setEndTime(value) }} />
+                </Field>
+              </div>
+            </div>
           </Section>
 
           {/* Участники */}

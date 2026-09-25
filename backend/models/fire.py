@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String, Date, CheckConstraint, UniqueConstraint
+from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Boolean, String, Date, CheckConstraint, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from db.base import Base
 
@@ -32,7 +32,7 @@ class Fire(Base):
 
     land_type_id = Column(Integer, ForeignKey("land_types.id"), nullable=True, index=True)
 
-    area = Column(Float, nullable=True)
+    area = Column(Numeric(18, 4), nullable=True)
 
     # =========================
     # 📍 LOCATION

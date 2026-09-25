@@ -68,14 +68,18 @@ docker compose logs --tail=100 db-backup
 
 ### Карта
 
-Карта работает на Leaflet и OpenStreetMap без API-ключа. Поиск адресов выполняется
-через Nominatim только по явному действию пользователя.
+Карта работает на Leaflet и OpenStreetMap без API-ключа. При ошибках основной
+подложки автоматически включается резервная подложка CARTO. Поиск адресов
+выполняется через Nominatim только по явному действию пользователя.
 
 В `client-web/public/data/orenburg-municipalities.geojson` хранится локальный слой
 42 муниципальных образований Оренбургской области. Исходный набор подготовлен
 НИУ ВШЭ на основе геометрии OpenStreetMap и атрибутов Росстата (границы на
 01.01.2021). Для повторной сборки слоя используется
 `scripts/extract_orenburg_boundaries.py`.
+
+Инструкция для готового образа VirtualBox 7 находится в
+`NFMP-VirtualBox-7-README.txt`.
 
 ## Production-запуск
 

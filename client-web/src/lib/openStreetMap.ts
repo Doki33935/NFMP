@@ -17,11 +17,16 @@ type GeocodingResult = {
   address: string
 }
 
+export type BaseMapStatus = 'openstreetmap' | 'fallback' | 'unavailable'
+
 let districtsPromise: Promise<GeoJsonObject> | null = null
 let geocodingQueue: Promise<void> = Promise.resolve()
 let lastGeocodingRequestAt = 0
 
-export function createOpenStreetMap(container: HTMLElement): L.Map {
+export function createOpenStreetMap(
+  container: HTMLElement,
+  onBaseMapStatus?: (status: BaseMapStatus) => void
+): L.Map {
   const map = L.map(container, {
     center: ORENBURG_CENTER,
     zoom: 7,
@@ -34,10 +39,43 @@ export function createOpenStreetMap(container: HTMLElement): L.Map {
   // Keep the required map data attribution, but remove Leaflet's flag-shaped logo.
   map.attributionControl.setPrefix(false)
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const primaryLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map)
+    crossOrigin: true,
+  })
+  let primaryErrors = 0
+  let fallbackStarted = false
+
+  const startFallback = () => {
+    if (fallbackStarted) return
+    fallbackStarted = true
+    map.removeLayer(primaryLayer)
+
+    const fallbackLayer = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      {
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        crossOrigin: true,
+      }
+    )
+    let fallbackErrors = 0
+    fallbackLayer.on('load', () => onBaseMapStatus?.('fallback'))
+    fallbackLayer.on('tileerror', () => {
+      fallbackErrors += 1
+      if (fallbackErrors === 4) onBaseMapStatus?.('unavailable')
+    })
+    fallbackLayer.addTo(map)
+  }
+
+  primaryLayer.on('load', () => onBaseMapStatus?.('openstreetmap'))
+  primaryLayer.on('tileerror', () => {
+    primaryErrors += 1
+    if (primaryErrors === 4) startFallback()
+  })
+  primaryLayer.addTo(map)
   L.control.scale({ imperial: false, metric: true }).addTo(map)
 
   return map

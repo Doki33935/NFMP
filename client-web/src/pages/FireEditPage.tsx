@@ -10,6 +10,7 @@ import { FireParticipantRow } from '@/components/fire/FireParticipantRow'
 import { TimeInput } from '@/components/fire/TimeInput'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import { FireLocationMap } from '@/components/map/FireLocationMap'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { FireParticipantEventIn } from '@/types/fire'
 
 function normalizeTime(value: string | null | undefined): string {
@@ -112,15 +113,15 @@ export function FireEditPage() {
     if (fire.end_time) {
       const d = new Date(fire.end_time)
       if (Number.isNaN(d.getTime())) {
-        setEndDate(localDateString())
-        setEndTime('12:00')
+        setEndDate(fire.fire_date)
+        setEndTime(normalizeTime(fire.time_msg))
       } else {
         setEndDate(localDateString(d))
         setEndTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
       }
     } else {
-      setEndDate(localDateString())
-      setEndTime('12:00')
+      setEndDate(fire.fire_date)
+      setEndTime(normalizeTime(fire.time_msg))
     }
     setLiquidationTouched(false)
     if (fire.participant_events) {
@@ -129,6 +130,11 @@ export function FireEditPage() {
           participant_id: pe.participant_id,
           arrival_time: normalizeTime(pe.arrival_time),
           tech_type_id: pe.tech_type_id || null,
+          equipment: pe.equipment?.length
+            ? pe.equipment
+            : pe.tech_type_id
+              ? [{ tech_type_id: pe.tech_type_id, quantity: 1 }]
+              : [],
           comment: pe.comment || '',
         }))
       )
@@ -136,7 +142,7 @@ export function FireEditPage() {
   }, [fire])
 
   const addParticipant = () => {
-    setParticipants([...participants, { participant_id: 0, arrival_time: '', tech_type_id: null }])
+    setParticipants([...participants, { participant_id: 0, arrival_time: null, tech_type_id: null, equipment: [] }])
   }
 
   const removeParticipant = (idx: number) => {
@@ -165,9 +171,14 @@ export function FireEditPage() {
     owner: owner || undefined,
     source: source || undefined,
     extra: extra || undefined,
-    external_card_number: externalCardNumber || undefined,
-    end_time: endDate ? `${endDate}T${endTime || '12:00'}:00` : undefined,
-    participants: participants.filter((p) => p.participant_id > 0),
+    external_card_number: externalCardNumber.trim() || null,
+    end_time: endDate && isCompleteTime(endTime) ? `${endDate}T${endTime}:00` : undefined,
+    participants: participants
+      .filter((p) => p.participant_id > 0)
+      .map((participant) => ({
+        ...participant,
+        equipment: participant.equipment.filter((item) => item.tech_type_id > 0),
+      })),
   })
 
   const handleSave = async () => {
@@ -175,6 +186,11 @@ export function FireEditPage() {
 
     if (!isCompleteTime(fireTime)) {
       setError('Укажите время сообщения')
+      return
+    }
+
+    if (area.trim() && hasInvalidOptionalNumber(area)) {
+      setError('Площадь: укажите число')
       return
     }
 
@@ -196,7 +212,6 @@ export function FireEditPage() {
       if (!reasonGroupId) { setError('Для оформления укажите причину пожара'); return }
       if (!reasonId) { setError('Для оформления укажите подпричину пожара'); return }
       if (!owner) { setError('Для оформления укажите собственника'); return }
-      if (!externalCardNumber) { setError('Для оформления укажите номер карточки ААС КНД'); return }
     }
 
     setSaving(true)
@@ -208,22 +223,22 @@ export function FireEditPage() {
       }
       toast(fire!.status === 'IN_REVIEW' ? 'КУЛП оформлен' : 'Сохранено', 'success')
       navigate('/fires')
-    } catch {
-      setError('Ошибка при сохранении')
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError, 'Ошибка при сохранении'))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm('Удалить карту пожара? Это действие необратимо.')) return
+    if (!confirm('Скрыть карточку пожара из списков? Запись останется в архиве базы данных.')) return
     setSaving(true)
     try {
       await api.delete(`/fires/${id}`)
       toast('Карта пожара удалена', 'success')
       navigate('/fires')
-    } catch {
-      setError('Ошибка при удалении')
+    } catch (deleteError) {
+      setError(getApiErrorMessage(deleteError, 'Ошибка при удалении'))
     } finally {
       setSaving(false)
     }
@@ -252,15 +267,15 @@ export function FireEditPage() {
   }
 
   const isCompleted = fire.status === 'COMPLETED'
-  const needsAttention = !isCompleted
-  const isLiquidationDefault = needsAttention && !fire.end_time && !liquidationTouched && endTime === '12:00'
+  const canEdit = !isCompleted || currentUser?.role === 'admin'
+  const needsAttention = fire.status === 'IN_REVIEW'
+  const isLiquidationDefault = needsAttention && !fire.end_time && !liquidationTouched
   const missingLandType = needsAttention && !landTypeId
   const missingArea = needsAttention && !area
   const missingForestry = needsAttention && isForest && !forestryId
   const missingReasonGroup = needsAttention && !reasonGroupId
   const missingReason = needsAttention && !reasonId
   const missingOwner = needsAttention && !owner.trim()
-  const missingExternalCard = needsAttention && !externalCardNumber.trim()
   const ownerOptions = owner && !refs.ownerTypes.some((option) => option.id === owner)
     ? [{ id: owner, name: `${owner} (старое значение)` }, ...refs.ownerTypes]
     : refs.ownerTypes
@@ -369,13 +384,13 @@ export function FireEditPage() {
             <Field label="Примечание">
               <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={2} className="w-full rounded-lg bg-background border border-border px-3 py-2.5 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all resize-none" />
             </Field>
-            <Field label="Номер карточки ААС КНД" attention={missingExternalCard}>
-              <Input value={externalCardNumber} onChange={setExternalCardNumber} placeholder="Номер карточки" attention={missingExternalCard} />
+            <Field label="Номер карточки ААС КНД">
+              <Input value={externalCardNumber} onChange={setExternalCardNumber} placeholder="Необязательно" />
             </Field>
           </Section>
 
           {/* Ликвидация */}
-          {!isCompleted && (
+          {canEdit && (
             <Section icon="M9 12l2 2 4-4M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" title="Ликвидация">
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
@@ -442,9 +457,9 @@ export function FireEditPage() {
             <button onClick={() => navigate('/fires')} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-surface-hover transition-colors cursor-pointer">
               Назад
             </button>
-            {!isCompleted && (
+            {canEdit && (
               <button onClick={handleSave} disabled={saving} className="flex-1 rounded-lg bg-primary py-3 font-medium text-white hover:bg-primary-hover disabled:opacity-50 transition-all active:scale-[0.99] cursor-pointer shadow-lg shadow-primary/20">
-                {saving ? 'Сохранение...' : fire.status === 'IN_REVIEW' ? 'Оформить КУЛП' : 'Сохранить'}
+                {saving ? 'Сохранение...' : fire.status === 'IN_REVIEW' ? 'Оформить КУЛП' : 'Сохранить изменения'}
               </button>
             )}
           </div>

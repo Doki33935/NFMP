@@ -164,7 +164,10 @@ export function MonitoringPage() {
       if (!matchesNumberSelection(filters.reasonIds, fire.reason_id)) return false
       if (!matchesNumberSelection(filters.reasonGroupIds, reasonGroupByReason.get(fire.reason_id || 0))) return false
       if (filters.participantIds.length > 0 && !fire.participant_events?.some((p) => filters.participantIds.includes(String(p.participant_id)))) return false
-      if (filters.techTypeIds.length > 0 && !fire.participant_events?.some((p) => p.tech_type_id != null && filters.techTypeIds.includes(String(p.tech_type_id)))) return false
+      if (filters.techTypeIds.length > 0 && !fire.participant_events?.some((event) =>
+        event.equipment?.some((item) => filters.techTypeIds.includes(String(item.tech_type_id)))
+        || (event.tech_type_id != null && filters.techTypeIds.includes(String(event.tech_type_id)))
+      )) return false
       if (!matchesTextSelection(filters.rightOfWayValues, fire.right_of_way ? 'yes' : 'no')) return false
       if (!matchesTextSelection(filters.zouitTypes, fire.right_of_way_type || '')) return false
       if (!matchesTextSelection(filters.ownerTypes, fire.owner || '')) return false
@@ -283,7 +286,7 @@ export function MonitoringPage() {
                 <BarItem label="Ландшафтные" value={stats.landscape} total={stats.total} color="bg-warning" />
               </SummaryPanel>
 
-              <SummaryPanel title="Собственники">
+              <SummaryPanel title="Собственники" scroll>
                 {ownerBreakdown.length === 0 ? (
                   <p className="text-sm text-text-muted">Нет данных</p>
                 ) : (
@@ -296,8 +299,8 @@ export function MonitoringPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
               <TopList title="Зарегистрированные причины пожаров" items={reasonBreakdown} full />
-              <TopList title="МО по количеству" items={topMunicipalities} />
-              <TopList title="Участники тушения" items={participantBreakdown} />
+              <TopList title="МО по количеству" items={topMunicipalities} full />
+              <TopList title="Участники тушения" items={participantBreakdown} full />
             </div>
 
             <FilterPanel
@@ -347,7 +350,6 @@ function matchesCompleteness(fire: FireResponse, mode: string): boolean {
     !hasArea(fire) ||
     !fire.reason_id ||
     !fire.owner ||
-    !fire.external_card_number ||
     !fire.end_time ||
     (fire.is_forest && !fire.forestry_id)
 
@@ -434,7 +436,7 @@ function hasArea(fire: FireResponse): boolean {
 }
 
 function topBy(fires: FireResponse[], getter: (fire: FireResponse) => string) {
-  return breakdownBy(fires, getter).slice(0, 6)
+  return breakdownBy(fires, getter)
 }
 
 function breakdownBy(fires: FireResponse[], getter: (fire: FireResponse) => string) {
@@ -459,7 +461,6 @@ function topParticipants(fires: FireResponse[], names: Map<number, string>) {
   return [...counts.entries()]
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 6)
 }
 
 function FilterPanel({
@@ -827,7 +828,7 @@ function exportRows(fires: FireResponse[], dictionaries: DictionaryMaps): Export
     Лесничество: dictionaries.forestries.get(fire.forestry_id || 0) || '',
     'Состав земли': dictionaries.landTypes.get(fire.land_type_id || 0) || '',
     Причина: dictionaries.reasons.get(fire.reason_id || 0) || '',
-    'Площадь, га': fire.area ?? '',
+    'Площадь, га': formatAreaForCsv(fire.area),
     'Наличие ЗОУИТ': fire.right_of_way ? 'Да' : 'Нет',
     'Тип ЗОУИТ': fire.right_of_way_type || '',
     Собственник: fire.owner || '',
@@ -857,10 +858,19 @@ function participantNames(fire: FireResponse, dictionaries: DictionaryMaps): str
   return fire.participant_events
     ?.map((event) => {
       const participant = dictionaries.participants.get(event.participant_id) || 'Участник'
-      const tech = event.tech_type_id ? dictionaries.techTypes.get(event.tech_type_id) : ''
-      return [participant, event.arrival_time, tech].filter(Boolean).join(' / ')
+      const equipment = event.equipment?.length
+        ? event.equipment.map((item) => `${dictionaries.techTypes.get(item.tech_type_id) || 'Техника'} - ${item.quantity}`).join(', ')
+        : event.tech_type_id
+          ? dictionaries.techTypes.get(event.tech_type_id)
+          : ''
+      return [participant, event.arrival_time, equipment].filter(Boolean).join(' / ')
     })
     .join(', ') || ''
+}
+
+function formatAreaForCsv(value: number | null | undefined): string {
+  if (value === null || value === undefined) return ''
+  return String(value).replace('.', ',')
 }
 
 function csvCell(value: unknown): string {
@@ -906,11 +916,13 @@ function StatCard({ label, value, suffix = '', tone = 'default' }: { label: stri
   )
 }
 
-function SummaryPanel({ title, children }: { title: string; children: React.ReactNode }) {
+function SummaryPanel({ title, children, scroll = false }: { title: string; children: React.ReactNode; scroll?: boolean }) {
   return (
     <div className="bg-surface rounded-lg border border-border p-4 space-y-3">
       <h3 className="text-sm font-semibold">{title}</h3>
-      {children}
+      <div className={scroll ? 'max-h-[360px] space-y-3 overflow-y-auto pr-1' : 'space-y-3'}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -1014,5 +1026,5 @@ function formatDuration(minutes: number | null): string {
 }
 
 function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1)
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
 }

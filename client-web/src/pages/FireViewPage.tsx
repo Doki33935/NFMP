@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/errors'
 import { useReferences } from '@/hooks/useReferences'
+import { useAuthStore } from '@/store/auth'
+import { useToastStore } from '@/store/toast'
 import type { FireResponse } from '@/types/fire'
 import type { Reason, Selsovet } from '@/types/references'
 
@@ -14,11 +17,14 @@ const STATUS_LABELS: Record<string, string> = {
 export function FireViewPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const currentUser = useAuthStore((state) => state.user)
+  const toast = useToastStore((state) => state.add)
   const refs = useReferences()
   const [fire, setFire] = useState<FireResponse | null>(null)
   const [reasons, setReasons] = useState<Reason[]>([])
   const [selsovets, setSelsovets] = useState<Selsovet[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -66,6 +72,20 @@ export function FireViewPage() {
     }
   }, [refs, reasons, selsovets])
 
+  const handleDelete = async () => {
+    if (!fire || !confirm('Скрыть карточку пожара из списков? Запись останется в архиве базы данных.')) return
+
+    setDeleting(true)
+    try {
+      await api.delete(`/fires/${fire.id}`)
+      toast('Карточка скрыта и сохранена в архиве', 'success')
+      navigate('/monitoring')
+    } catch (error) {
+      toast(getApiErrorMessage(error, 'Не удалось скрыть карточку'), 'error')
+      setDeleting(false)
+    }
+  }
+
   if (loading || refs.loading) {
     return (
       <div className="p-6">
@@ -101,12 +121,24 @@ export function FireViewPage() {
             <h1 className="text-2xl font-bold">Пожар #{fire.id}</h1>
             <p className="text-sm text-text-muted mt-1">Просмотр карточки из мониторинга</p>
           </div>
-          <button
-            onClick={() => navigate('/monitoring')}
-            className="px-4 py-2 rounded-lg bg-surface text-text-muted font-medium hover:bg-surface-hover hover:text-text transition-colors cursor-pointer"
-          >
-            Назад к мониторингу
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {currentUser?.role === 'admin' && (
+              <>
+                <button onClick={() => navigate(`/fires/${fire.id}`)} className="px-4 py-2 rounded-md bg-primary text-white font-medium hover:bg-primary-hover transition-colors cursor-pointer">
+                  Изменить
+                </button>
+                <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 rounded-md bg-surface text-text-muted font-medium hover:bg-primary/10 hover:text-primary disabled:opacity-50 transition-colors cursor-pointer">
+                  {deleting ? 'Удаление...' : 'Удалить'}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => navigate('/monitoring')}
+              className="px-4 py-2 rounded-md bg-surface text-text-muted font-medium hover:bg-surface-hover hover:text-text transition-colors cursor-pointer"
+            >
+              Назад к мониторингу
+            </button>
+          </div>
         </div>
 
         <Section title="Событие">
@@ -155,7 +187,7 @@ export function FireViewPage() {
                     <tr key={event.id} className="border-t border-border">
                       <td className="py-2 pr-3">{dictionaries.participants.get(event.participant_id) || '—'}</td>
                       <td className="py-2 pr-3">{event.arrival_time || '—'}</td>
-                      <td className="py-2 pr-3">{event.tech_type_id ? dictionaries.techTypes.get(event.tech_type_id) || '—' : '—'}</td>
+                      <td className="py-2 pr-3">{equipmentLabel(event, dictionaries.techTypes)}</td>
                       <td className="py-2 pr-3">{event.comment || '—'}</td>
                     </tr>
                   ))}
@@ -174,6 +206,18 @@ export function FireViewPage() {
       </div>
     </div>
   )
+}
+
+function equipmentLabel(
+  event: NonNullable<FireResponse['participant_events']>[number],
+  techTypes: Map<number, string>
+): string {
+  if (event.equipment?.length) {
+    return event.equipment
+      .map((item) => `${techTypes.get(item.tech_type_id) || 'Неизвестная техника'} - ${item.quantity}`)
+      .join(', ')
+  }
+  return event.tech_type_id ? techTypes.get(event.tech_type_id) || '—' : '—'
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

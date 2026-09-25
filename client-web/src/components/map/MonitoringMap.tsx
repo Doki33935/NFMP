@@ -38,7 +38,11 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
     let disposed = false
 
     try {
-      const map = createOpenStreetMap(containerRef.current)
+      const map = createOpenStreetMap(containerRef.current, (baseMapStatus) => {
+        if (disposed) return
+        if (baseMapStatus === 'fallback') setMessage('Основная подложка недоступна, включена резервная')
+        if (baseMapStatus === 'unavailable') setMessage('Подложка недоступна без Интернета; границы и метки продолжают работать')
+      })
       const markers = L.markerClusterGroup({
         showCoverageOnHover: false,
         maxClusterRadius: 64,
@@ -87,17 +91,12 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
 
   return (
     <section className="bg-surface rounded-lg border border-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+      <div className="px-4 py-3 border-b border-border">
         <div>
           <h2 className="font-semibold">Карта пожаров</h2>
           <p className="text-xs text-text-muted mt-0.5">
             На карте {firesWithCoordinates.length} из {fires.length}; без точки {fires.length - firesWithCoordinates.length}
           </p>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-text-muted">
-          <Legend color="bg-primary" label="Открыт" />
-          <Legend color="bg-warning" label="На проверке" />
-          <Legend color="bg-success" label="Оформлен" />
         </div>
       </div>
 
@@ -203,13 +202,4 @@ function statusLabel(status: string): string {
     COMPLETED: 'Оформлен',
   }
   return labels[status] || status
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
-      {label}
-    </span>
-  )
 }

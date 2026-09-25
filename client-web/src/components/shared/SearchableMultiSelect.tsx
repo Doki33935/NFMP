@@ -109,13 +109,13 @@ export function SearchableMultiSelect({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => onChange([...new Set([...values, ...filteredOptions.map((option) => String(option.id))])])}
+                onClick={() => onChange(options.map((option) => String(option.id)))}
                 className="text-accent hover:text-primary-hover"
               >
-                Выбрать найденные
+                Выбрать всё
               </button>
               <button type="button" onClick={() => onChange([])} className="text-text-muted hover:text-text">
-                Снять все
+                Снять всё
               </button>
             </div>
           </div>

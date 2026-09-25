@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from core.security import get_db, require_role
 from db.reference_values import OWNER_TYPES, ZOUIT_TYPES
 from models.fire import Fire
-from models.fire_participant_events import FireParticipantEvent
+from models.fire_participant_events import FireParticipantEvent, FireParticipantEventEquipment
 from models.fire_participants import FireParticipant
 from models.forestries import Forestry
 from models.land_types import LandType
@@ -22,12 +22,32 @@ from schemas.fire_update import FireUpdate
 router = APIRouter(prefix="/fires", tags=["fires"])
 
 
+OPTIONAL_RESPONSE_PARTICIPANTS = {
+    "Население",
+    "Участники тушения пожара отсутствовали",
+}
+
+
 def validate_participants(db: Session, participants) -> None:
     for participant in participants:
-        if not db.get(FireParticipant, participant.participant_id):
+        participant_ref = db.get(FireParticipant, participant.participant_id)
+        if not participant_ref:
             raise HTTPException(400, f"Participant {participant.participant_id} not found")
-        if participant.tech_type_id and not db.get(TechType, participant.tech_type_id):
-            raise HTTPException(400, f"Tech {participant.tech_type_id} not found")
+
+        equipment = participant.equipment
+        if participant_ref.name not in OPTIONAL_RESPONSE_PARTICIPANTS:
+            if not participant.arrival_time:
+                raise HTTPException(400, f"Укажите время прибытия для участника «{participant_ref.name}»")
+            if not equipment:
+                raise HTTPException(400, f"Укажите технику для участника «{participant_ref.name}»")
+
+        seen_tech_types: set[int] = set()
+        for item in equipment:
+            if item.tech_type_id in seen_tech_types:
+                raise HTTPException(400, "Один тип техники нельзя добавлять участнику дважды")
+            seen_tech_types.add(item.tech_type_id)
+            if not db.get(TechType, item.tech_type_id):
+                raise HTTPException(400, f"Tech {item.tech_type_id} not found")
 
 
 def validate_zouit(has_zouit: bool | None, zouit_type: str | None) -> None:
@@ -88,19 +108,18 @@ def validate_fire_fields(db: Session, values: dict, *, fire_id: int | None = Non
 def validate_completion(fire: Fire) -> None:
     missing = []
     for field, label in (
-        ("land_type_id", "land type"),
-        ("area", "area"),
-        ("reason_id", "reason"),
-        ("owner", "owner"),
-        ("external_card_number", "external card number"),
-        ("end_time", "end time"),
+        ("land_type_id", "состав земли"),
+        ("area", "площадь"),
+        ("reason_id", "причина пожара"),
+        ("owner", "собственник"),
+        ("end_time", "дата ликвидации"),
     ):
         if getattr(fire, field) is None or getattr(fire, field) == "":
             missing.append(label)
     if fire.is_forest and fire.forestry_id is None:
-        missing.append("forestry")
+        missing.append("лесничество")
     if missing:
-        raise HTTPException(400, f"Cannot complete fire; missing: {', '.join(missing)}")
+        raise HTTPException(400, f"Нельзя оформить карточку. Не заполнено: {', '.join(missing)}")
 
 
 def replace_events(db: Session, fire_id: int, participants) -> None:
@@ -109,13 +128,22 @@ def replace_events(db: Session, fire_id: int, participants) -> None:
     ).delete(synchronize_session=False)
 
     for participant in participants:
+        equipment = [
+            FireParticipantEventEquipment(
+                tech_type_id=item.tech_type_id,
+                quantity=item.quantity,
+            )
+            for item in participant.equipment
+        ]
+        legacy_tech_type_id = equipment[0].tech_type_id if equipment else None
         db.add(
             FireParticipantEvent(
                 fire_id=fire_id,
                 participant_id=participant.participant_id,
                 arrival_time=participant.arrival_time,
-                tech_type_id=participant.tech_type_id,
+                tech_type_id=legacy_tech_type_id,
                 comment=participant.comment,
+                equipment=equipment,
             )
         )
 
@@ -128,7 +156,7 @@ def get_active_fire(db: Session, fire_id: int, *, eager: bool = False) -> Fire |
     query = active_fire_query(db)
     if eager:
         query = query.options(
-            joinedload(Fire.participant_events),
+            joinedload(Fire.participant_events).joinedload(FireParticipantEvent.equipment),
             joinedload(Fire.creator),
             joinedload(Fire.reviewer),
         )
@@ -139,7 +167,7 @@ def require_fire_editor(fire: Fire, current_user: User) -> None:
     if current_user.role == "admin":
         return
     if fire.reviewer_id != current_user.id:
-        raise HTTPException(403, "Fire is assigned to another investigator")
+        raise HTTPException(403, "Карточка назначена другому дознавателю")
 
 
 @router.post("/", response_model=FireResponse, status_code=status.HTTP_201_CREATED)
@@ -173,7 +201,7 @@ def get_fires(
     current_user: User = Depends(require_role("inspector", "admin", "chief")),
 ):
     query = active_fire_query(db).options(
-        joinedload(Fire.participant_events),
+        joinedload(Fire.participant_events).joinedload(FireParticipantEvent.equipment),
         joinedload(Fire.creator),
         joinedload(Fire.reviewer),
     )
@@ -216,9 +244,9 @@ def update_fire(
     fire = get_active_fire(db, fire_id)
     if not fire:
         raise HTTPException(404, "Fire not found")
-    if fire.status == "COMPLETED":
+    if fire.status == "COMPLETED" and current_user.role != "admin":
         raise HTTPException(400, "Editing not allowed")
-    if fire.status != "IN_REVIEW":
+    if fire.status not in {"IN_REVIEW", "COMPLETED"}:
         raise HTTPException(400, "Take the fire before editing")
     require_fire_editor(fire, current_user)
 
