@@ -179,6 +179,7 @@ function createFireTooltip(fire: FireResponse): HTMLElement {
 }
 
 function getFireCoordinates(fire: FireResponse): MapCoordinates | null {
+  if (fire.latitude == null || fire.longitude == null) return null
   const latitude = Number(fire.latitude)
   const longitude = Number(fire.longitude)
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
