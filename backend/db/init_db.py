@@ -13,6 +13,7 @@ from models.tech_type import TechType
 from models.reasons import Reason, ReasonGroup
 from db.reference_values import FORESTRY_NAMES
 from core.security import hash_password
+from sqlalchemy import text
 import os
 
 
@@ -761,36 +762,19 @@ def seed_selsovets():
         ("Новосельский сельсовет", "Ясненский МО")
     ]
 
-    # кешируем МО чтобы не делать 500 запросов
-    municipalities = {
-        m.name: m.id
-        for m in db.query(Municipality).all()
-    }
-
     for name, municipality_name in selsovets_data:
-
-        municipality_id = municipalities.get(municipality_name)
-
-        if not municipality_id:
-            print(f"⚠️ Municipality not found: {municipality_name}")
-            continue
-
-        exists = (
-            db.query(Selsovet)
-            .filter(
-                Selsovet.name == name,
-                Selsovet.municipality_id == municipality_id,
-            )
-            .first()
+        db.execute(
+            text(
+                """
+                INSERT INTO selsovets (name, municipality_id)
+                SELECT :name, id
+                FROM municipalities
+                WHERE name = :municipality_name
+                ON CONFLICT (name, municipality_id) DO NOTHING
+                """
+            ),
+            {"name": name, "municipality_name": municipality_name},
         )
-
-        if not exists:
-            db.add(
-                Selsovet(
-                    name=name,
-                    municipality_id=municipality_id
-                )
-            )
 
     db.commit()
     db.close()
