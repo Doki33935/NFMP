@@ -5,6 +5,8 @@ import api from '@/lib/api'
 const ROLE_NAV: Record<string, { label: string; path: string }[]> = {
   dispatcher: [
     { label: 'Регистрация пожара', path: '/fires/create' },
+    { label: 'Пожары', path: '/fires' },
+    { label: 'Мониторинг', path: '/monitoring' },
   ],
   inspector: [
     { label: 'Регистрация пожара', path: '/fires/create' },

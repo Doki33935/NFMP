@@ -1,4 +1,6 @@
 from models.fire import Fire
+from models.municipalities import Municipality
+from models.selsovets import Selsovet
 from db.reference_values import OWNER_TYPES
 
 
@@ -25,7 +27,10 @@ def test_fire_lifecycle_and_roles(api_context):
     created = client.post("/fires/", json=base_fire_payload(context))
     assert created.status_code == 201, created.text
     fire_id = created.json()["id"]
-    assert client.get("/fires/").status_code == 403
+    assert client.get("/fires/").status_code == 200
+    assert client.get(f"/fires/{fire_id}/view").status_code == 200
+    assert client.get(f"/fires/{fire_id}").status_code == 403
+    assert client.put(f"/fires/{fire_id}", json={"area": 1.5}).status_code == 403
 
     current["user"] = context["roles"]["inspector"]
     assert client.get("/fires/").status_code == 200
@@ -134,3 +139,29 @@ def test_participant_equipment_and_optional_response_fields(api_context):
     invalid_response = client.post("/fires/", json=invalid)
     assert invalid_response.status_code == 400
     assert "время прибытия" in invalid_response.json()["detail"]
+
+
+def test_selsovet_names_are_unique_per_municipality(api_context):
+    context = api_context
+    second_municipality = Municipality(name="Second municipality")
+    context["db"].add(second_municipality)
+    context["db"].flush()
+
+    context["db"].add(
+        Selsovet(
+            name=context["selsovet"].name,
+            municipality_id=second_municipality.id,
+        )
+    )
+    context["db"].commit()
+
+    matches = (
+        context["db"]
+        .query(Selsovet)
+        .filter(Selsovet.name == context["selsovet"].name)
+        .all()
+    )
+    assert {item.municipality_id for item in matches} == {
+        context["municipality"].id,
+        second_municipality.id,
+    }

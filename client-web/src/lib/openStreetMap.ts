@@ -1,5 +1,5 @@
 import L from 'leaflet'
-import type { GeoJsonObject } from 'geojson'
+import type { FeatureCollection, GeoJsonObject, Point } from 'geojson'
 
 export type MapCoordinates = [number, number]
 
@@ -17,11 +17,49 @@ type GeocodingResult = {
   address: string
 }
 
+type SettlementPlace = 'city' | 'town' | 'village' | 'hamlet'
+
+type SettlementProperties = {
+  name: string
+  place: SettlementPlace
+  population?: number
+}
+
+type SettlementCollection = FeatureCollection<Point, SettlementProperties>
+
 export type BaseMapStatus = 'openstreetmap' | 'fallback' | 'unavailable'
 
 let districtsPromise: Promise<GeoJsonObject> | null = null
+let settlementsPromise: Promise<SettlementCollection> | null = null
 let geocodingQueue: Promise<void> = Promise.resolve()
 let lastGeocodingRequestAt = 0
+
+class LocalBackgroundLayer extends L.GridLayer {
+  public createTile(coordinates: L.Coords): HTMLElement {
+    const tile = document.createElement('canvas')
+    const size = this.getTileSize()
+    tile.width = size.x
+    tile.height = size.y
+    const context = tile.getContext('2d')
+    if (context) {
+      context.fillStyle = (coordinates.x + coordinates.y) % 2 === 0 ? '#eef2f3' : '#edf1f2'
+      context.fillRect(0, 0, tile.width, tile.height)
+      context.strokeStyle = '#dbe2e5'
+      context.lineWidth = 1
+      for (let offset = 0; offset <= tile.width; offset += 64) {
+        context.beginPath()
+        context.moveTo(offset, 0)
+        context.lineTo(offset, tile.height)
+        context.stroke()
+        context.beginPath()
+        context.moveTo(0, offset)
+        context.lineTo(tile.width, offset)
+        context.stroke()
+      }
+    }
+    return tile
+  }
+}
 
 export function createOpenStreetMap(
   container: HTMLElement,
@@ -38,6 +76,11 @@ export function createOpenStreetMap(
 
   // Keep the required map data attribution, but remove Leaflet's flag-shaped logo.
   map.attributionControl.setPrefix(false)
+
+  const localBaseLayer = new LocalBackgroundLayer({
+    attribution: 'Населённые пункты: &copy; OpenStreetMap',
+  })
+  localBaseLayer.addTo(map)
 
   const primaryLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -89,17 +132,87 @@ export async function addOrenburgDistricts(
   if (isCancelled()) return null
   return L.geoJSON(collection, {
     style: {
-      color: '#f87171',
+      color: '#c24141',
       weight: 1,
-      opacity: 0.72,
-      fillColor: '#dc2626',
-      fillOpacity: 0.06,
+      opacity: 0.82,
+      fillColor: '#dce8df',
+      fillOpacity: 0.24,
     },
     onEachFeature: (feature, layer) => {
       const name = feature.properties?.name
       if (typeof name === 'string' && name) layer.bindTooltip(name, { sticky: true })
     },
   }).addTo(map)
+}
+
+export async function addOrenburgSettlements(
+  map: L.Map,
+  isCancelled: () => boolean = () => false
+): Promise<L.LayerGroup | null> {
+  const collection = await loadSettlements()
+  if (isCancelled()) return null
+
+  if (!map.getPane('settlementLabels')) {
+    const pane = map.createPane('settlementLabels')
+    pane.style.zIndex = '450'
+    pane.style.pointerEvents = 'none'
+  }
+
+  const labels = L.layerGroup().addTo(map)
+  const render = () => {
+    if (isCancelled()) return
+    labels.clearLayers()
+
+    const zoom = map.getZoom()
+    const bounds = map.getBounds().pad(0.15)
+    const candidates = collection.features
+      .filter((feature) => {
+        const [longitude, latitude] = feature.geometry.coordinates
+        return bounds.contains([latitude, longitude]) && settlementIsVisible(feature.properties, zoom)
+      })
+      .sort((first, second) => {
+        const rankDifference = settlementRank(first.properties.place) - settlementRank(second.properties.place)
+        if (rankDifference !== 0) return rankDifference
+        return (second.properties.population || 0) - (first.properties.population || 0)
+          || first.properties.name.localeCompare(second.properties.name, 'ru')
+      })
+
+    const occupied: LabelBox[] = []
+    const labelLimit = zoom <= 7 ? 80 : zoom === 8 ? 120 : zoom === 9 ? 180 : 260
+
+    for (const feature of candidates) {
+      if (occupied.length >= labelLimit) break
+      const [longitude, latitude] = feature.geometry.coordinates
+      const point = map.latLngToContainerPoint([latitude, longitude])
+      const width = Math.min(190, Math.max(52, 22 + [...feature.properties.name].length * 6.5))
+      const box = { left: point.x - 6, top: point.y - 10, right: point.x + width, bottom: point.y + 11 }
+      if (occupied.some((item) => boxesOverlap(item, box))) continue
+      occupied.push(box)
+
+      const content = document.createElement('span')
+      content.className = `orenburg-place-label orenburg-place-label--${feature.properties.place}`
+      const dot = document.createElement('span')
+      dot.className = 'orenburg-place-dot'
+      const name = document.createElement('span')
+      name.textContent = feature.properties.name
+      content.append(dot, name)
+
+      L.marker([latitude, longitude], {
+        pane: 'settlementLabels',
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'orenburg-place-icon',
+          html: content,
+          iconAnchor: [4, 4],
+        }),
+      }).addTo(labels)
+    }
+  }
+
+  map.on('moveend zoomend', render)
+  render()
+  return labels
 }
 
 export async function findAddressInOrenburg(query: string): Promise<GeocodingResult | null> {
@@ -161,6 +274,46 @@ function loadDistricts(): Promise<GeoJsonObject> {
       })
   }
   return districtsPromise
+}
+
+function loadSettlements(): Promise<SettlementCollection> {
+  if (!settlementsPromise) {
+    const base = import.meta.env.BASE_URL.endsWith('/')
+      ? import.meta.env.BASE_URL
+      : `${import.meta.env.BASE_URL}/`
+    settlementsPromise = fetch(`${base}data/orenburg-settlements.geojson`)
+      .then((response) => {
+        if (!response.ok) throw new Error('Не удалось загрузить населённые пункты')
+        return response.json() as Promise<SettlementCollection>
+      })
+  }
+  return settlementsPromise
+}
+
+function settlementRank(place: SettlementPlace): number {
+  return { city: 0, town: 1, village: 2, hamlet: 3 }[place]
+}
+
+function settlementIsVisible(properties: SettlementProperties, zoom: number): boolean {
+  if (properties.place === 'city') return true
+  if (properties.place === 'town') return zoom >= 7
+  if (properties.place === 'village') return zoom >= 9 || (zoom >= 8 && (properties.population || 0) >= 1000)
+  return zoom >= 11
+}
+
+type LabelBox = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+function boxesOverlap(first: LabelBox, second: LabelBox): boolean {
+  const padding = 4
+  return first.left - padding < second.right
+    && first.right + padding > second.left
+    && first.top - padding < second.bottom
+    && first.bottom + padding > second.top
 }
 
 function requestNominatim<T>(path: string): Promise<T> {

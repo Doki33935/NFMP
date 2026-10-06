@@ -127,7 +127,7 @@ select {
 }
 
 .leaflet-container {
-  background: var(--color-background);
+  background: #eef2f3;
   color: #1f2937;
   font-family: inherit;
 }
@@ -164,4 +164,42 @@ select {
 
 .fire-map-marker--unknown span {
   background: #6b7280;
+}
+
+.orenburg-place-icon {
+  overflow: visible !important;
+  border: 0;
+  background: transparent;
+}
+
+.orenburg-place-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 190px;
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-shadow: 0 1px 0 #ffffff, 1px 0 0 #ffffff, 0 -1px 0 #ffffff, -1px 0 0 #ffffff;
+  white-space: nowrap;
+}
+
+.orenburg-place-label--city,
+.orenburg-place-label--town {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.orenburg-place-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: #334155;
+  box-shadow: 0 0 0 1px #ffffff;
 }

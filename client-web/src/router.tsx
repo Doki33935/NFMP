@@ -42,10 +42,10 @@ export function AppRouter() {
           <Route path="/" element={<MainMenuPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/fires/create" element={<ProtectedRoute roles={['dispatcher', 'inspector', 'admin']}><FireCreatePage /></ProtectedRoute>} />
-          <Route path="/fires" element={<ProtectedRoute roles={['inspector', 'admin']}><FireListPage /></ProtectedRoute>} />
+          <Route path="/fires" element={<ProtectedRoute roles={['dispatcher', 'inspector', 'admin']}><FireListPage /></ProtectedRoute>} />
           <Route path="/fires/:id" element={<ProtectedRoute roles={['inspector', 'admin']}><FireEditPage /></ProtectedRoute>} />
-          <Route path="/monitoring" element={<ProtectedRoute roles={['admin', 'chief']}><MonitoringPage /></ProtectedRoute>} />
-          <Route path="/monitoring/fires/:id" element={<ProtectedRoute roles={['admin', 'chief']}><FireViewPage /></ProtectedRoute>} />
+          <Route path="/monitoring" element={<ProtectedRoute roles={['dispatcher', 'admin', 'chief']}><MonitoringPage /></ProtectedRoute>} />
+          <Route path="/monitoring/fires/:id" element={<ProtectedRoute roles={['dispatcher', 'admin', 'chief']}><FireViewPage /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute roles={['admin']}><UsersPage /></ProtectedRoute>} />
         </Route>
 

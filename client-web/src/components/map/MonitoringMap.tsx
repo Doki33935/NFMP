@@ -8,6 +8,7 @@ import type { FireResponse } from '@/types/fire'
 import {
   ORENBURG_CENTER,
   addOrenburgDistricts,
+  addOrenburgSettlements,
   createOpenStreetMap,
   type MapCoordinates,
 } from '@/lib/openStreetMap'
@@ -40,8 +41,8 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
     try {
       const map = createOpenStreetMap(containerRef.current, (baseMapStatus) => {
         if (disposed) return
-        if (baseMapStatus === 'fallback') setMessage('Основная подложка недоступна, включена резервная')
-        if (baseMapStatus === 'unavailable') setMessage('Подложка недоступна без Интернета; границы и метки продолжают работать')
+        if (baseMapStatus === 'fallback') setMessage('Используется резервная интернет-подложка')
+        if (baseMapStatus === 'unavailable') setMessage('Автономная карта: границы, населённые пункты и метки доступны без Интернета')
       })
       const markers = L.markerClusterGroup({
         showCoverageOnHover: false,
@@ -60,6 +61,9 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
 
       void addOrenburgDistricts(map, () => disposed).catch(() => {
         if (!disposed) setMessage('Карта загружена без границ районов')
+      })
+      void addOrenburgSettlements(map, () => disposed).catch(() => {
+        if (!disposed) setMessage('Карта загружена без подписей населённых пунктов')
       })
       const readyFrame = window.requestAnimationFrame(() => setStatus('ready'))
 
@@ -118,7 +122,7 @@ export function MonitoringMap({ fires, onOpen }: MonitoringMapProps) {
       </div>
 
       <div className="px-4 py-2 border-t border-border text-xs text-text-muted">
-        {message || 'Карта: OpenStreetMap. Границы: НИУ ВШЭ / OpenStreetMap / Росстат, 2021'}
+        {message || 'Карта и населённые пункты: OpenStreetMap. Границы: НИУ ВШЭ / OpenStreetMap / Росстат, 2021'}
       </div>
     </section>
   )

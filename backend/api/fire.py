@@ -198,7 +198,7 @@ def create_fire(
 def get_fires(
     status_value: str | None = Query(None, alias="status"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("inspector", "admin", "chief")),
+    current_user: User = Depends(require_role("dispatcher", "inspector", "admin", "chief")),
 ):
     query = active_fire_query(db).options(
         joinedload(Fire.participant_events).joinedload(FireParticipantEvent.equipment),
@@ -226,7 +226,7 @@ def get_fire(
 def view_fire(
     fire_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "chief")),
+    current_user: User = Depends(require_role("dispatcher", "admin", "chief")),
 ):
     fire = get_active_fire(db, fire_id, eager=True)
     if not fire:

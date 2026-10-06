@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   addOrenburgDistricts,
+  addOrenburgSettlements,
   createOpenStreetMap,
   findAddressByCoordinates,
   findAddressInOrenburg,
@@ -54,8 +55,8 @@ export function FireLocationMap({
     try {
       const map = createOpenStreetMap(containerRef.current, (baseMapStatus) => {
         if (disposed) return
-        if (baseMapStatus === 'fallback') setMessage('Включена резервная подложка карты')
-        if (baseMapStatus === 'unavailable') setMessage('Подложка недоступна; точку можно поставить вручную')
+        if (baseMapStatus === 'fallback') setMessage('Используется резервная интернет-подложка')
+        if (baseMapStatus === 'unavailable') setMessage('Автономная карта: границы и населённые пункты доступны без Интернета')
       })
       mapRef.current = map
       placeMarkerRef.current = (coordinates, caption = 'Место пожара') => {
@@ -122,6 +123,9 @@ export function FireLocationMap({
         .catch(() => {
           if (!disposed) setMessage('Карта загружена без границ районов')
         })
+      void addOrenburgSettlements(map, () => disposed).catch(() => {
+        if (!disposed) setMessage('Карта загружена без подписей населённых пунктов')
+      })
       const readyFrame = window.requestAnimationFrame(() => setStatus('ready'))
 
       return () => {
@@ -215,7 +219,7 @@ export function FireLocationMap({
       </div>
 
       <div className="min-h-5 text-xs text-text-muted leading-5">
-        {message || 'Карта и поиск адресов: OpenStreetMap. Границы: НИУ ВШЭ / OpenStreetMap / Росстат'}
+        {message || 'Карта, населённые пункты и поиск адресов: OpenStreetMap. Границы: НИУ ВШЭ / OpenStreetMap / Росстат'}
       </div>
     </div>
   )

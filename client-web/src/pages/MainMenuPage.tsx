@@ -18,6 +18,8 @@ interface Action {
 const ROLE_ACTIONS: Record<string, Action[]> = {
   dispatcher: [
     { label: 'Регистрация пожара', path: '/fires/create', description: 'Зарегистрировать новый инцидент', icon: 'M12 4v16m-8-8h16' },
+    { label: 'Список пожаров', path: '/fires', description: 'Просмотр зарегистрированных пожаров', icon: 'M4 6h16M4 12h16M4 18h16' },
+    { label: 'Мониторинг', path: '/monitoring', description: 'Сводка, фильтры и карта', icon: 'M3 3v18h18M7 16l4-4 4 4 5-5' },
   ],
   inspector: [
     { label: 'Регистрация пожара', path: '/fires/create', description: 'Зарегистрировать новый инцидент', icon: 'M12 4v16m-8-8h16' },

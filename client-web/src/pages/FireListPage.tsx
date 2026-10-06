@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFireList } from '@/hooks/useFires'
+import { useAuthStore } from '@/store/auth'
 
 const STATUSES = [
   { value: 'OPEN', label: 'Открытые' },
@@ -28,6 +29,11 @@ export function FireListPage() {
   const [status, setStatus] = useState('OPEN')
   const { fires, loading } = useFireList(status)
   const navigate = useNavigate()
+  const currentUser = useAuthStore((state) => state.user)
+
+  const openFire = (fireId: number) => {
+    navigate(currentUser?.role === 'dispatcher' ? `/monitoring/fires/${fireId}` : `/fires/${fireId}`)
+  }
 
   return (
     <div className="p-4 md:p-6 animate-fade-in">
@@ -74,7 +80,7 @@ export function FireListPage() {
             {fires.map((fire) => (
               <div
                 key={fire.id}
-                onClick={() => navigate(`/fires/${fire.id}`)}
+                onClick={() => openFire(fire.id)}
                 className="flex items-center gap-4 bg-surface rounded-md p-4 hover:bg-surface-hover cursor-pointer transition-all hover:translate-x-1 group"
               >
                 <span className="text-text-muted text-sm font-mono">

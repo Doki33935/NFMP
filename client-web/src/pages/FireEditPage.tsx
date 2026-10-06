@@ -71,7 +71,7 @@ export function FireEditPage() {
   const [endTime, setEndTime] = useState('12:00')
   const [liquidationTouched, setLiquidationTouched] = useState(false)
   const [participants, setParticipants] = useState<FireParticipantEventIn[]>([])
-  const [saving, setSaving] = useState(false)
+  const [saveMode, setSaveMode] = useState<'save' | 'complete' | 'delete' | null>(null)
   const [error, setError] = useState('')
 
   const selsovets = useSelsovets(municipalityId)
@@ -181,7 +181,7 @@ export function FireEditPage() {
       })),
   })
 
-  const handleSave = async () => {
+  const handleSave = async (complete = false) => {
     setError('')
 
     if (!isCompleteTime(fireTime)) {
@@ -204,35 +204,35 @@ export function FireEditPage() {
       return
     }
 
-    // При оформлении — все поля обязательны
-    if (fire!.status === 'IN_REVIEW') {
+    if (complete && fire!.status === 'IN_REVIEW') {
       if (!landTypeId) { setError('Для оформления укажите состав земли'); return }
       if (!area) { setError('Для оформления укажите площадь'); return }
       if (isForest && !forestryId) { setError('Для оформления укажите лесничество'); return }
       if (!reasonGroupId) { setError('Для оформления укажите причину пожара'); return }
       if (!reasonId) { setError('Для оформления укажите подпричину пожара'); return }
       if (!owner) { setError('Для оформления укажите собственника'); return }
+      if (!endDate || !isCompleteTime(endTime)) { setError('Для оформления укажите дату и время ликвидации'); return }
     }
 
-    setSaving(true)
+    setSaveMode(complete ? 'complete' : 'save')
     try {
       const payload = buildPayload()
       await updateFire(Number(id), payload)
-      if (fire!.status === 'IN_REVIEW') {
+      if (complete && fire!.status === 'IN_REVIEW') {
         await api.post(`/fires/${id}/complete`)
       }
-      toast(fire!.status === 'IN_REVIEW' ? 'КУЛП оформлен' : 'Сохранено', 'success')
+      toast(complete ? 'КУЛП оформлен' : 'Изменения сохранены', 'success')
       navigate('/fires')
     } catch (saveError) {
       setError(getApiErrorMessage(saveError, 'Ошибка при сохранении'))
     } finally {
-      setSaving(false)
+      setSaveMode(null)
     }
   }
 
   const handleDelete = async () => {
     if (!confirm('Скрыть карточку пожара из списков? Запись останется в архиве базы данных.')) return
-    setSaving(true)
+    setSaveMode('delete')
     try {
       await api.delete(`/fires/${id}`)
       toast('Карта пожара удалена', 'success')
@@ -240,7 +240,7 @@ export function FireEditPage() {
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, 'Ошибка при удалении'))
     } finally {
-      setSaving(false)
+      setSaveMode(null)
     }
   }
 
@@ -450,16 +450,21 @@ export function FireEditPage() {
 
           <div className="flex gap-3 pt-2">
             {currentUser?.role === 'admin' && (
-              <button onClick={handleDelete} disabled={saving} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer">
-                Удалить
+              <button onClick={handleDelete} disabled={saveMode !== null} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-primary/10 hover:text-primary disabled:opacity-50 transition-colors cursor-pointer">
+                {saveMode === 'delete' ? 'Удаление...' : 'Удалить'}
               </button>
             )}
             <button onClick={() => navigate('/fires')} className="px-5 py-3 rounded-lg bg-surface text-text-muted font-medium hover:bg-surface-hover transition-colors cursor-pointer">
               Назад
             </button>
             {canEdit && (
-              <button onClick={handleSave} disabled={saving} className="flex-1 rounded-lg bg-primary py-3 font-medium text-white hover:bg-primary-hover disabled:opacity-50 transition-all active:scale-[0.99] cursor-pointer shadow-lg shadow-primary/20">
-                {saving ? 'Сохранение...' : fire.status === 'IN_REVIEW' ? 'Оформить КУЛП' : 'Сохранить изменения'}
+              <button onClick={() => void handleSave(false)} disabled={saveMode !== null} className="flex-1 rounded-lg bg-surface py-3 font-medium text-text hover:bg-surface-hover disabled:opacity-50 transition-all active:scale-[0.99] cursor-pointer">
+                {saveMode === 'save' ? 'Сохранение...' : 'Сохранить изменения'}
+              </button>
+            )}
+            {fire.status === 'IN_REVIEW' && (
+              <button onClick={() => void handleSave(true)} disabled={saveMode !== null} className="flex-1 rounded-lg bg-primary py-3 font-medium text-white hover:bg-primary-hover disabled:opacity-50 transition-all active:scale-[0.99] cursor-pointer shadow-lg shadow-primary/20">
+                {saveMode === 'complete' ? 'Оформление...' : 'Оформить КУЛП'}
               </button>
             )}
           </div>

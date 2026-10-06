@@ -777,7 +777,10 @@ def seed_selsovets():
 
         exists = (
             db.query(Selsovet)
-            .filter(Selsovet.name == name)
+            .filter(
+                Selsovet.name == name,
+                Selsovet.municipality_id == municipality_id,
+            )
             .first()
         )
 
