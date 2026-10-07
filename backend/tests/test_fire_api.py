@@ -53,6 +53,22 @@ def test_fire_lifecycle_and_roles(api_context):
     }
     updated = client.put(f"/fires/{fire_id}", json=completed_fields)
     assert updated.status_code == 200, updated.text
+
+    updated_participants = [
+        {
+            "participant_id": context["participant"].id,
+            "arrival_time": "10:15",
+            "equipment": [
+                {"tech_type_id": context["tech_type"].id, "quantity": 2},
+            ],
+        }
+    ]
+    updated = client.put(f"/fires/{fire_id}", json={"participants": updated_participants})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["participant_events"][0]["equipment"] == [
+        {"tech_type_id": context["tech_type"].id, "quantity": 2},
+    ]
+
     completed = client.post(f"/fires/{fire_id}/complete")
     assert completed.status_code == 200, completed.text
     assert completed.json()["status"] == "COMPLETED"

@@ -172,6 +172,29 @@ select {
   background: transparent;
 }
 
+.orenburg-district-icon {
+  overflow: visible !important;
+  border: 0;
+  background: transparent;
+}
+
+.orenburg-district-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: max-content;
+  max-width: 150px;
+  transform: translate(-50%, -50%);
+  color: #7f1d1d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-shadow: 0 1px 0 #ffffff, 1px 0 0 #ffffff, 0 -1px 0 #ffffff, -1px 0 0 #ffffff;
+  white-space: nowrap;
+}
+
 .orenburg-place-label {
   position: absolute;
   left: 0;

@@ -130,7 +130,15 @@ export async function addOrenburgDistricts(
 ): Promise<L.GeoJSON | null> {
   const collection = await loadDistricts()
   if (isCancelled()) return null
-  return L.geoJSON(collection, {
+
+  if (!map.getPane('districtLabels')) {
+    const pane = map.createPane('districtLabels')
+    pane.style.zIndex = '410'
+    pane.style.pointerEvents = 'none'
+  }
+
+  const districtCenters: Array<{ coordinates: L.LatLng; name: string }> = []
+  const districts = L.geoJSON(collection, {
     style: {
       color: '#c24141',
       weight: 1,
@@ -140,9 +148,61 @@ export async function addOrenburgDistricts(
     },
     onEachFeature: (feature, layer) => {
       const name = feature.properties?.name
-      if (typeof name === 'string' && name) layer.bindTooltip(name, { sticky: true })
+      if (typeof name === 'string' && name) {
+        layer.bindTooltip(name, { sticky: true })
+        if (layer instanceof L.Polygon) {
+          districtCenters.push({
+            coordinates: layer.getBounds().getCenter(),
+            name: normalizeDistrictName(name),
+          })
+        }
+      }
     },
   }).addTo(map)
+
+  const labels = L.layerGroup().addTo(map)
+  const renderLabels = () => {
+    if (isCancelled()) return
+    labels.clearLayers()
+
+    const zoom = map.getZoom()
+    const bounds = map.getBounds().pad(0.1)
+    const occupied: LabelBox[] = []
+    const labelLimit = zoom <= 5 ? 18 : zoom === 6 ? 30 : districtCenters.length
+
+    for (const district of districtCenters) {
+      if (occupied.length >= labelLimit || !bounds.contains(district.coordinates)) continue
+
+      const point = map.latLngToContainerPoint(district.coordinates)
+      const width = Math.min(150, Math.max(70, 18 + [...district.name].length * 5.5))
+      const box = {
+        left: point.x - width / 2,
+        top: point.y - 9,
+        right: point.x + width / 2,
+        bottom: point.y + 9,
+      }
+      if (occupied.some((item) => boxesOverlap(item, box))) continue
+      occupied.push(box)
+
+      const content = document.createElement('span')
+      content.className = 'orenburg-district-label'
+      content.textContent = district.name
+      L.marker(district.coordinates, {
+        pane: 'districtLabels',
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: 'orenburg-district-icon',
+          html: content,
+          iconAnchor: [0, 0],
+        }),
+      }).addTo(labels)
+    }
+  }
+
+  map.on('moveend zoomend', renderLabels)
+  renderLabels()
+  return districts
 }
 
 export async function addOrenburgSettlements(
@@ -292,6 +352,12 @@ function loadSettlements(): Promise<SettlementCollection> {
 
 function settlementRank(place: SettlementPlace): number {
   return { city: 0, town: 1, village: 2, hamlet: 3 }[place]
+}
+
+function normalizeDistrictName(name: string): string {
+  return name
+    .replace(/\s+муниципальный район$/i, ' район')
+    .replace(/^городской округ город\s+/i, 'г. ')
 }
 
 function settlementIsVisible(properties: SettlementProperties, zoom: number): boolean {

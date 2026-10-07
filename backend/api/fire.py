@@ -250,8 +250,8 @@ def update_fire(
         raise HTTPException(400, "Take the fire before editing")
     require_fire_editor(fire, current_user)
 
-    update_data = data.model_dump(exclude_unset=True)
-    participants = update_data.pop("participants", None)
+    participants = data.participants if "participants" in data.model_fields_set else None
+    update_data = data.model_dump(exclude_unset=True, exclude={"participants"})
 
     has_zouit = update_data.get("right_of_way", fire.right_of_way)
     zouit_type = update_data.get("right_of_way_type", fire.right_of_way_type)
